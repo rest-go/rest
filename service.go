@@ -37,18 +37,12 @@ func NewService() *Service {
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	db := s.db
-	table := strings.Trim(r.URL.Path, "/")
-	log.Println("get table: ", db, table)
-
-	// This is a long SELECT. Use the request context as the base of
-	// the context timeout, but give it some time to finish. If
-	// the client cancels before the query is done the query will also
-	// be canceled.
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
 
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("select * from %s as t;", table))
+	table := strings.Trim(r.URL.Path, "/")
+	// TODO: validate table name, check table exists in database
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf("select * from %s as t;", table))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -64,58 +58,28 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		scanArgs := make([]interface{}, count)
+		converters := make([]TypeConverter, count)
 		for i, v := range columnTypes {
-			switch v.DatabaseTypeName() {
-			case "TIMESTAMP":
-				scanArgs[i] = new(sql.NullTime)
-			case "BOOL":
-				scanArgs[i] = new(sql.NullBool)
-			case "INT4":
-				scanArgs[i] = new(sql.NullInt64)
-			default:
-				scanArgs[i] = new(sql.NullString)
+			t := v.DatabaseTypeName()
+			if f, ok := Types[t]; ok {
+				scanArgs[i] = f()
+				converters[i] = TypeConverters[t]
+			} else {
+				scanArgs[i] = Types[DEFAULT]()
+				converters[i] = TypeConverters[DEFAULT]
 			}
 		}
 
 		err := rows.Scan(scanArgs...)
-
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		masterData := map[string]interface{}{}
-
+		data := make(map[string]interface{}, count)
 		for i, v := range columnTypes {
-
-			if z, ok := (scanArgs[i]).(*sql.NullBool); ok {
-				masterData[v.Name()] = z.Bool
-				continue
-			}
-
-			if z, ok := (scanArgs[i]).(*sql.NullString); ok {
-				masterData[v.Name()] = z.String
-				continue
-			}
-
-			if z, ok := (scanArgs[i]).(*sql.NullInt64); ok {
-				masterData[v.Name()] = z.Int64
-				continue
-			}
-
-			if z, ok := (scanArgs[i]).(*sql.NullFloat64); ok {
-				masterData[v.Name()] = z.Float64
-				continue
-			}
-
-			if z, ok := (scanArgs[i]).(*sql.NullInt32); ok {
-				masterData[v.Name()] = z.Int32
-				continue
-			}
-
-			masterData[v.Name()] = scanArgs[i]
+			data[v.Name()] = converters[i](scanArgs[i])
 		}
-
-		finalRows = append(finalRows, masterData)
+		finalRows = append(finalRows, data)
 	}
 	if err := json.NewEncoder(w).Encode(finalRows); err != nil {
 		log.Fatal(err)
