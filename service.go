@@ -22,12 +22,19 @@ type Response struct {
 }
 
 type Service struct {
-	db *sql.DB
+	db     *sql.DB
+	tables map[string]struct{}
 }
 
-func NewService() *Service {
+func NewService(url string, limitedTables ...string) *Service {
 	// Opening a driver typically will not attempt to connect to the database.
-	db, err := sql.Open("sqlite", "/Users/hao/Downloads/chinook.db")
+	parts := strings.Split(url, "://")
+	if len(parts) != 2 {
+		log.Fatal("invalid db url: ", url)
+	}
+	log.Print("open db url: ", url)
+	driver, url := parts[0], parts[1]
+	db, err := sql.Open(driver, url)
 	if err != nil {
 		// This will not be a connection error, but a DSN parse error or
 		// another initialization error.
@@ -37,15 +44,41 @@ func NewService() *Service {
 	db.SetMaxIdleConns(50)
 	db.SetMaxOpenConns(50)
 
+	var tables map[string]struct{}
+	if len(limitedTables) > 0 {
+		tables = make(map[string]struct{}, len(limitedTables))
+		for _, t := range limitedTables {
+			tables[t] = struct{}{}
+		}
+	}
+
 	return &Service{
-		db: db,
+		db:     db,
+		tables: tables,
+	}
+}
+
+func (s *Service) json(w http.ResponseWriter, res *Response) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		log.Printf("failed to encode json data, %v", err)
 	}
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var res *Response
 	table := strings.Trim(r.URL.Path, "/")
+	if len(s.tables) > 0 {
+		if _, ok := s.tables[table]; !ok {
+			res = &Response{
+				Code: http.StatusNotFound,
+				Msg:  fmt.Sprintf("table not supported: %s", table),
+			}
+			s.json(w, res)
+			return
+		}
+	}
 
-	var res Response
 	switch r.Method {
 	case "POST":
 		res = s.create(r, table)
@@ -56,30 +89,25 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		res = s.get(r, table)
 	default:
-		if _, err := w.Write([]byte(fmt.Sprintf("method not supported: %s", r.Method))); err != nil {
-			log.Fatal(err)
+		res = &Response{
+			Code: http.StatusBadRequest,
+			Msg:  fmt.Sprintf("method not supported: %s", r.Method),
 		}
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(res); err != nil {
-		log.Printf("failed to encode json data, %v", err)
-	}
+	s.json(w, res)
 }
 
-func (s *Service) create(r *http.Request, tableName string) Response {
+func (s *Service) create(r *http.Request, tableName string) *Response {
 	data := make(map[string]any)
-	// Try to decode the request body into the struct. If there is an error,
-	// respond to the client with the error message and a 400 status code.
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
-		return Response{
+		return &Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to parse http body as json data, %v", err),
 		}
 	}
 	if len(data) == 0 {
-		return Response{
+		return &Response{
 			Code: http.StatusBadRequest,
 			Msg:  "empty data",
 		}
@@ -87,75 +115,76 @@ func (s *Service) create(r *http.Request, tableName string) Response {
 
 	log.Printf("get json data: %+v", data)
 	placeholders := make([]string, 0, len(data))
-	names := make([]string, 0, len(data))
+	columns := make([]string, 0, len(data))
 	args := make([]any, 0, len(data))
 	index := 1
 	for k, v := range data {
-		names = append(names, k)
-		args = append(args, v)
+		columns = append(columns, k)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", index))
+		args = append(args, v)
 		index++
 	}
 
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", tableName, strings.Join(names, ","), strings.Join(placeholders, ","))
-	rows, err := s.execQuery(r.Context(), sql, args)
+	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", tableName, strings.Join(columns, ","), strings.Join(placeholders, ","))
+	rows, err := s.execQuery(r.Context(), sql, args...)
 	if err != nil {
-		return Response{
+		return &Response{
 			Code: http.StatusInternalServerError,
 			Msg:  err.Error(),
 		}
 	}
 	if rows != 1 {
-		return Response{
+		return &Response{
 			Code: http.StatusInternalServerError,
-			Msg:  fmt.Sprintf("expected to affect 1 row, affected %d", rows),
+			Msg:  fmt.Sprintf("expected to insert 1 row, but affected %d rows", rows),
 		}
 	}
 
-	return Response{
+	return &Response{
 		Code: http.StatusOK,
 		Msg:  "success",
 	}
 }
 
-func (s *Service) delete(r *http.Request, tableName string) Response {
-	sql := fmt.Sprintf("DELETE FROM %s", tableName)
+func (s *Service) delete(r *http.Request, tableName string) *Response {
+	var sqlBuilder strings.Builder
+	sqlBuilder.WriteString("DELETE FROM ")
+	sqlBuilder.WriteString(tableName)
 	_, query, args := buildWhereQuery(1, r.URL.Query())
 	if len(query) > 0 {
-		sql += fmt.Sprintf(" WHERE %s", query)
+		sqlBuilder.WriteString(" WHERE ")
+		sqlBuilder.WriteString(query)
 	}
 
-	_, err := s.fetchData(r.Context(), sql, args...)
+	rows, err := s.execQuery(r.Context(), sqlBuilder.String(), args...)
 	if err != nil {
-		return Response{
+		return &Response{
 			Code: http.StatusInternalServerError,
 			Msg:  err.Error(),
 		}
 	}
 
-	return Response{
+	return &Response{
 		Code: http.StatusOK,
-		Msg:  "success",
+		Msg:  fmt.Sprintf("successfully deleted %d rows", rows),
 	}
 }
 
-func (s *Service) update(r *http.Request, tableName string) Response {
+func (s *Service) update(r *http.Request, tableName string) *Response {
 	var sqlBuilder strings.Builder
 	sqlBuilder.WriteString("UPDATE ")
 	sqlBuilder.WriteString(tableName)
 
 	data := make(map[string]any)
-	// Try to decode the request body into the struct. If there is an error,
-	// respond to the client with the error message and a 400 status code.
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
-		return Response{
+		return &Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to parse http body as json data, %v", err),
 		}
 	}
 	if len(data) == 0 {
-		return Response{
+		return &Response{
 			Code: http.StatusBadRequest,
 			Msg:  "empty data",
 		}
@@ -173,20 +202,20 @@ func (s *Service) update(r *http.Request, tableName string) Response {
 		args = append(args, args2...)
 	}
 
-	rows, err := s.execQuery(r.Context(), sqlBuilder.String(), args)
+	rows, err := s.execQuery(r.Context(), sqlBuilder.String(), args...)
 	if err != nil {
-		return Response{
+		return &Response{
 			Code: http.StatusInternalServerError,
 			Msg:  err.Error(),
 		}
 	}
-	return Response{
+	return &Response{
 		Code: http.StatusOK,
 		Msg:  fmt.Sprintf("successfully updated %d rows", rows),
 	}
 }
 
-func (s *Service) get(r *http.Request, tableName string) Response {
+func (s *Service) get(r *http.Request, tableName string) *Response {
 	// Example
 	// fetch all:
 	//   http get "localhost:8080/artists"
@@ -194,25 +223,33 @@ func (s *Service) get(r *http.Request, tableName string) Response {
 	//   http get "localhost:8080/artists?ArtistId=1"
 	// query by array:
 	//   http get "localhost:8080/artists?ArtistId=1&ArtistId=2"
-
-	sql := fmt.Sprintf("SELECT * FROM %s", tableName)
-	_, query, args := buildWhereQuery(1, r.URL.Query())
+	values := r.URL.Query()
+	page, pageSize := extractPage(values)
+	var sqlBuilder strings.Builder
+	sqlBuilder.WriteString("SELECT * FROM ")
+	sqlBuilder.WriteString(tableName)
+	_, query, args := buildWhereQuery(1, values)
 	if len(query) > 0 {
-		sql += fmt.Sprintf(" WHERE %s", query)
+		sqlBuilder.WriteString(" WHERE ")
+		sqlBuilder.WriteString(query)
 	}
 
-	// TODO: handle page operations
-	sql += " LIMIT 10"
+	sqlBuilder.WriteString(" LIMIT ")
+	sqlBuilder.WriteString(fmt.Sprintf("%d", pageSize))
+	if page != 1 {
+		sqlBuilder.WriteString(" OFFSET ")
+		sqlBuilder.WriteString(fmt.Sprintf("%d", (page-1)*pageSize))
+	}
 
-	objects, err := s.fetchData(r.Context(), sql, args...)
+	objects, err := s.fetchData(r.Context(), sqlBuilder.String(), args...)
 	if err != nil {
-		return Response{
+		return &Response{
 			Code: http.StatusInternalServerError,
 			Msg:  err.Error(),
 		}
 	}
 
-	return Response{
+	return &Response{
 		Code: http.StatusOK,
 		Msg:  "success",
 		Data: objects,

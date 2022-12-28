@@ -4,8 +4,24 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+func extractPage(values url.Values) (int, int) {
+	page := 1
+	pageSize := 100
+	if p, ok := values["page"]; ok {
+		page, _ = strconv.Atoi(p[0])
+		delete(values, "page")
+	}
+	if p, ok := values["page_size"]; ok {
+		pageSize, _ = strconv.Atoi(p[0])
+		delete(values, "page_size")
+	}
+	log.Print("extract page: ", page, pageSize)
+	return page, pageSize
+}
 
 func filterEmpty(in []string) []string {
 	out := make([]string, 0, len(in))
@@ -27,6 +43,10 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 	args := make([]any, 0, len(query))
 	count := 0
 	for k, v := range query {
+		if k == "_" {
+			continue
+		}
+
 		v := filterEmpty(v)
 		if len(v) == 0 {
 			log.Printf("empty query: %s\n", k)
