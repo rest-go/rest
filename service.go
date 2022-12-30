@@ -85,6 +85,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "DELETE":
 		res = s.delete(r, table)
 	case "PUT":
+	case "PATCH":
 		res = s.update(r, table)
 	case "GET":
 		res = s.get(r, table)
@@ -220,20 +221,28 @@ func (s *Service) get(r *http.Request, tableName string) *Response {
 	// fetch all:
 	//   http get "localhost:8080/artists"
 	// fetch by query:
-	//   http get "localhost:8080/artists?ArtistId=1"
+	//   http get "localhost:8080/artists?ArtistId=eq.1"
 	// query by array:
-	//   http get "localhost:8080/artists?ArtistId=1&ArtistId=2"
+	//   http get "localhost:8080/artists?ArtistId=in.(1,2)"
 	values := r.URL.Query()
-	page, pageSize := extractPage(values)
 	var sqlBuilder strings.Builder
-	sqlBuilder.WriteString("SELECT * FROM ")
-	sqlBuilder.WriteString(tableName)
+	selects := buildSelects(values)
+	sqlBuilder.WriteString(fmt.Sprintf("SELECT %s FROM %s", selects, tableName))
 	_, query, args := buildWhereQuery(1, values)
 	if len(query) > 0 {
 		sqlBuilder.WriteString(" WHERE ")
 		sqlBuilder.WriteString(query)
 	}
 
+	// order
+	order := buildOrderQuery(values)
+	if len(order) > 0 {
+		sqlBuilder.WriteString(" ORDER BY ")
+		sqlBuilder.WriteString(order)
+	}
+
+	// page operation
+	page, pageSize := extractPage(values)
 	sqlBuilder.WriteString(" LIMIT ")
 	sqlBuilder.WriteString(fmt.Sprintf("%d", pageSize))
 	if page != 1 {

@@ -21,3 +21,15 @@ var TypeConverters = map[string]TypeConverter{
 	"TIMESTAMP": func(i any) any { return i.(*sql.NullTime).Time },
 	DEFAULT:     func(i any) any { return i.(*sql.NullString).String },
 }
+
+var Operations = map[string]string{
+	"eq":    " = ",
+	"ne":    " <> ",
+	"gt":    " > ",
+	"lt":    " < ",
+	"gte":   " >= ",
+	"lte":   " <= ",
+	"like":  " like ",
+	"ilike": " ilike ",
+	"in":    " in ",
+}

@@ -23,14 +23,22 @@ func extractPage(values url.Values) (int, int) {
 	return page, pageSize
 }
 
-func filterEmpty(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if s != "" {
-			out = append(out, s)
-		}
+// buildSelects...
+func buildSelects(values url.Values) string {
+	selects := values["select"]
+	if len(selects) == 0 {
+		return "*"
 	}
-	return out
+	return selects[0]
+}
+
+// buildOrderQuery...
+func buildOrderQuery(values url.Values) string {
+	orders := values["order"]
+	if len(orders) == 0 {
+		return ""
+	}
+	return strings.ReplaceAll(orders[0], ".", " ")
 }
 
 // buildWhereQuery build sql where clause from url values
@@ -43,35 +51,30 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 	args := make([]any, 0, len(query))
 	count := 0
 	for k, v := range query {
-		if k == "_" {
+		vals := strings.Split(v[0], ".")
+		if len(vals) != 2 {
+			continue
+		}
+		op, val := vals[0], vals[1]
+		operation, ok := Operations[op]
+		if !ok {
+			log.Print("unsupported op: ", op)
 			continue
 		}
 
-		v := filterEmpty(v)
-		if len(v) == 0 {
-			log.Printf("empty query: %s\n", k)
-			continue
-		}
 		if count > 0 {
 			queryBuilder.WriteString(" AND ")
 		}
+
 		queryBuilder.WriteString(k)
-		if len(v) == 1 {
-			queryBuilder.WriteString(" = ")
-			queryBuilder.WriteString(fmt.Sprintf("$%d", index))
-			args = append(args, v[0])
-			index++
+		if op == "in" {
+			queryBuilder.WriteString(" in ")
+			queryBuilder.WriteString(val)
 		} else {
-			queryBuilder.WriteString(" in (")
-			for i, vv := range v {
-				queryBuilder.WriteString(fmt.Sprintf("$%d", index))
-				if i != len(v)-1 {
-					queryBuilder.WriteString(",")
-				}
-				args = append(args, vv)
-				index++
-			}
-			queryBuilder.WriteString(")")
+			queryBuilder.WriteString(operation)
+			queryBuilder.WriteString(fmt.Sprintf("$%d", index))
+			args = append(args, val)
+			index++
 		}
 		count++
 	}

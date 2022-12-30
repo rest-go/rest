@@ -6,31 +6,35 @@ import (
 	"net/http"
 )
 
-// ParseFlags will create and parse the CLI flags
-// and return the path to be used elsewhere
-func ParseFlags() (string, error) {
-	// String that contains the configured configuration path
-	var configPath string
-
+func parseFlags() *Config {
 	// Set up a CLI flag called "-config" to allow users
 	// to supply the configuration file
-	flag.StringVar(&configPath, "config", "./config.yml", "path to config file")
+	addr := flag.String("addr", ":3000", "listen addr")
+	dbUrl := flag.String("db.url", "", "db url")
+	cfgPath := flag.String("config", "./config.yml", "path to config file")
 
 	// Actually parse the flags
 	flag.Parse()
-
-	// Return the configuration path
-	return configPath, nil
+	cfg := &Config{}
+	if *cfgPath != "" {
+		var err error
+		cfg, err = NewConfig(*cfgPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	if *addr != "" {
+		cfg.Addr = *addr
+	}
+	if *dbUrl != "" {
+		cfg.DB.Url = *dbUrl
+	}
+	return cfg
 }
+
 func main() {
-	cfgPath, err := ParseFlags()
-	if err != nil {
-		log.Fatal(err)
-	}
-	cfg, err := NewConfig(cfgPath)
-	if err != nil {
-		log.Fatal(err)
-	}
+	cfg := parseFlags()
+
 	s := NewService(cfg.DB.Url, cfg.DB.Tables...)
 	log.Print("listen on addr: ", cfg.Addr)
 	log.Fatal(http.ListenAndServe(cfg.Addr, s))
