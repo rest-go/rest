@@ -21,6 +21,101 @@ type Response struct {
 	Data any    `json:"data,omitempty"`
 }
 
+type PostData struct {
+	objects []map[string]any
+}
+
+type PostQuery struct {
+	index   int
+	columns []string
+	vals    []string
+	args    []any
+}
+
+// valuesQuery convert post data to values query for insertion
+func (pd *PostData) valuesQuery() (*PostQuery, error) {
+	objects := pd.objects
+	if len(objects) == 0 {
+		return nil, fmt.Errorf("empty data")
+	}
+
+	columns := make([]string, 0, len(objects[0]))
+	vals := make([]string, 0, len(objects))
+	args := make([]any, 0, cap(columns)*cap(vals))
+	first := true
+	index := 1
+	for _, object := range objects {
+		val := make([]string, 0, len(object))
+		if first {
+			for k, v := range object {
+				columns = append(columns, k)
+				val = append(val, fmt.Sprintf("$%d", index))
+				args = append(args, v)
+				index++
+			}
+			first = false
+		} else {
+			if !identKeys(object, columns) {
+				return nil, fmt.Errorf("columns must be same for all objects, invalid object: %v", object)
+			}
+			// consistent column order with first object
+			for _, c := range columns {
+				val = append(val, fmt.Sprintf("$%d", index))
+				args = append(args, object[c])
+				index++
+			}
+		}
+		vals = append(vals, fmt.Sprintf("(%s)", strings.Join(val, ",")))
+	}
+	return &PostQuery{
+		index, columns, vals, args,
+	}, nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler
+func (pd *PostData) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 {
+		return fmt.Errorf("no bytes to unmarshal")
+	}
+	// See if we can guess based on the first character
+	switch b[0] {
+	case '{':
+		return pd.unmarshalSingle(b)
+	case '[':
+		return pd.unmarshalMany(b)
+	}
+	// This shouldn't really happen as the standard library seems to strip
+	// whitespace from the bytes being passed in, but just in case let's guess at
+	// multiple tags and fall back to a single one if that doesn't work.
+	err := pd.unmarshalMany(b)
+	if err != nil {
+		return pd.unmarshalSingle(b)
+	}
+	return nil
+}
+
+func (pd *PostData) unmarshalSingle(b []byte) error {
+	var data map[string]any
+	err := json.Unmarshal(b, &data)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal single data, %v", err)
+	}
+
+	pd.objects = []map[string]any{data}
+	return nil
+}
+
+func (pd *PostData) unmarshalMany(b []byte) error {
+	var data []map[string]any
+	err := json.Unmarshal(b, &data)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal many data, %v", err)
+	}
+
+	pd.objects = data
+	return nil
+}
+
 type Service struct {
 	db     *sql.DB
 	tables map[string]struct{}
@@ -28,18 +123,26 @@ type Service struct {
 
 func NewService(url string, limitedTables ...string) *Service {
 	// Opening a driver typically will not attempt to connect to the database.
-	parts := strings.Split(url, "://")
+	parts := strings.SplitN(url, "://", 2)
 	if len(parts) != 2 {
 		log.Fatal("invalid db url: ", url)
 	}
 	log.Print("open db url: ", url)
-	driver, url := parts[0], parts[1]
-	db, err := sql.Open(driver, url)
+	driver, dsn := parts[0], parts[1]
+	if driver == "postgres" {
+		driver = "pgx"
+		dsn = url
+	}
+	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		// This will not be a connection error, but a DSN parse error or
 		// another initialization error.
 		log.Fatal(err)
 	}
+	if err := db.Ping(); err != nil {
+		log.Fatal(err)
+	}
+
 	db.SetConnMaxLifetime(0)
 	db.SetMaxIdleConns(50)
 	db.SetMaxOpenConns(50)
@@ -84,8 +187,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		res = s.create(r, table)
 	case "DELETE":
 		res = s.delete(r, table)
-	case "PUT":
-	case "PATCH":
+	case "PUT", "PATCH":
 		res = s.update(r, table)
 	case "GET":
 		res = s.get(r, table)
@@ -99,7 +201,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) create(r *http.Request, tableName string) *Response {
-	data := make(map[string]any)
+	var data PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
 		return &Response{
@@ -107,37 +209,26 @@ func (s *Service) create(r *http.Request, tableName string) *Response {
 			Msg:  fmt.Sprintf("failed to parse http body as json data, %v", err),
 		}
 	}
-	if len(data) == 0 {
+	query, err := data.valuesQuery()
+	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Msg:  "empty data",
+			Msg:  fmt.Sprintf("failed to prepare sql query, %v", err),
 		}
 	}
 
-	log.Printf("get json data: %+v", data)
-	placeholders := make([]string, 0, len(data))
-	columns := make([]string, 0, len(data))
-	args := make([]any, 0, len(data))
-	index := 1
-	for k, v := range data {
-		columns = append(columns, k)
-		placeholders = append(placeholders, fmt.Sprintf("$%d", index))
-		args = append(args, v)
-		index++
-	}
-
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", tableName, strings.Join(columns, ","), strings.Join(placeholders, ","))
-	rows, err := s.execQuery(r.Context(), sql, args...)
+	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", tableName, strings.Join(query.columns, ","), strings.Join(query.vals, ","))
+	rows, err := s.execQuery(r.Context(), sql, query.args...)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
 			Msg:  err.Error(),
 		}
 	}
-	if rows != 1 {
+	if rows != int64(len(query.vals)) {
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Msg:  fmt.Sprintf("expected to insert 1 row, but affected %d rows", rows),
+			Msg:  fmt.Sprintf("expected to insert %d rows, but affected %d rows", len(query.vals), rows),
 		}
 	}
 

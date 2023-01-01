@@ -33,3 +33,8 @@ var Operations = map[string]string{
 	"ilike": " ilike ",
 	"in":    " in ",
 }
+
+var ReservedKeys = map[string]struct{}{
+	"select": {},
+	"order":  {},
+}

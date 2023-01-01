@@ -10,7 +10,7 @@ func parseFlags() *Config {
 	// Set up a CLI flag called "-config" to allow users
 	// to supply the configuration file
 	addr := flag.String("addr", ":3000", "listen addr")
-	dbUrl := flag.String("db.url", "", "db url")
+	url := flag.String("db.url", "", "db url")
 	cfgPath := flag.String("config", "./config.yml", "path to config file")
 
 	// Actually parse the flags
@@ -26,8 +26,8 @@ func parseFlags() *Config {
 	if *addr != "" {
 		cfg.Addr = *addr
 	}
-	if *dbUrl != "" {
-		cfg.DB.Url = *dbUrl
+	if *url != "" {
+		cfg.DB.Url = *url
 	}
 	return cfg
 }

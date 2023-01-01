@@ -49,10 +49,14 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 
 	var queryBuilder strings.Builder
 	args := make([]any, 0, len(query))
-	count := 0
+	first := true
 	for k, v := range query {
+		if _, ok := ReservedKeys[k]; ok {
+			continue
+		}
 		vals := strings.Split(v[0], ".")
 		if len(vals) != 2 {
+			log.Print("unsupported vals: ", vals)
 			continue
 		}
 		op, val := vals[0], vals[1]
@@ -62,7 +66,7 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 			continue
 		}
 
-		if count > 0 {
+		if !first {
 			queryBuilder.WriteString(" AND ")
 		}
 
@@ -76,7 +80,7 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 			args = append(args, val)
 			index++
 		}
-		count++
+		first = false
 	}
 
 	return index, queryBuilder.String(), args
@@ -98,4 +102,17 @@ func buildSetQuery(index int, data map[string]any) (int, string, []any) {
 	}
 
 	return index, queryBuilder.String(), args
+}
+
+func identKeys(m map[string]any, keys []string) bool {
+	if len(m) != len(keys) {
+		return false
+	}
+
+	for _, k := range keys {
+		if _, ok := m[k]; !ok {
+			return false
+		}
+	}
+	return true
 }
