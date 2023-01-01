@@ -1,66 +1,60 @@
 # Rest
 
-Turn any database to a restful interface
+Rest serves a fully RESTful API from any existing database, PostgreSQL, MySQL and SQLite are supported for now, other database that has [a driver in Golang](https://github.com/golang/go/wiki/SQLDrivers) could be added without much efforts in theory, and might be added in the future.
 
-# Install
+# Guide
+## Install
 
 ``` bash
 go install github.com/shellfly/rest
 ```
 
-# Run Rest server
+## Run rest server
 
-1. Postgres
+
+
 ``` bash
+# PG
 rest -db.url "postgres://user:passwd@localhost:5432/db?search_path=api"
-```
 
-2. MySQL
-``` bash
+# MySQL
 rest -db.url "mysql://user:passwd@localhost:3306/db"
-```
 
-3. SQLite
-``` bash
+# SQLite
 rest -db.url "sqlite://chinook.db"
 ```
 
-## Use RESTful apis
+## Use apis
 
-1. Create
 ``` bash
+# Create an artist
 curl -XPOST "localhost:3000/artists" -d '{"artistid":10000, "name": "Bruce Lee"}'
-{"code":200,"msg":"success"}
-```
 
-2. Read
-``` bash
-curl "localhost:3000/artists?&artistid=eq.10000"
-{"code":200,"msg":"success","data":[{"ArtistId":10000,"Name":"Bruce Lee"}]}
-```
+# Fetch one artist
+curl -XGET "localhost:3000/artists?&artistid=eq.10000&singular"
 
-3. Update
-``` bash
+# Fetch many artists
+curl -XGET "localhost:3000/artists"
+
+# Fetch count
+curl -XGET "localhost:3000/artists?count"
+
+# Update
 curl -XPUT "localhost:3000/artists?&artistid=eq.10000" -d '{"name": "Stephen Chow"}'
 
-{"code":200,"msg":"successfully updated 1 rows"}
-```
-
-4. Delete
-``` bash
+# Delete
 curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
-{"code":200,"msg":"successfully deleted 1 rows"}
 ```
 
-# Road map
+# Features
 - [x] CRUD
 - [x] Limit tables
-- [x] open db by url config
 - [x] Page
-- [x] eq.4, lt., gt.,gte. is.
+- [x] eq.,lt., gt., is., like.
 - [x] ?select=f1,f2
 - [x] order by
-- [ ] post many
+- [x] count
+- [x] post many
 - [ ] escape select
 - [ ] post nested json
 - [ ] json operations

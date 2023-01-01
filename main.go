@@ -11,7 +11,7 @@ func parseFlags() *Config {
 	// to supply the configuration file
 	addr := flag.String("addr", ":3000", "listen addr")
 	url := flag.String("db.url", "", "db url")
-	cfgPath := flag.String("config", "./config.yml", "path to config file")
+	cfgPath := flag.String("config", "", "path to config file")
 
 	// Actually parse the flags
 	flag.Parse()
@@ -23,7 +23,7 @@ func parseFlags() *Config {
 			log.Fatal(err)
 		}
 	}
-	if *addr != "" {
+	if cfg.Addr == "" {
 		cfg.Addr = *addr
 	}
 	if *url != "" {

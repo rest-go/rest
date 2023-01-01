@@ -6,15 +6,15 @@ import (
 	"strings"
 )
 
-type PostData struct {
-	objects []map[string]any
-}
-
 type PostQuery struct {
 	index   int
 	columns []string
 	vals    []string
 	args    []any
+}
+
+type PostData struct {
+	objects []map[string]any
 }
 
 // valuesQuery convert post data to values query for insertion
