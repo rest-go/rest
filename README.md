@@ -60,6 +60,7 @@ curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
 - [x] eq.4, lt., gt.,gte. is.
 - [x] ?select=f1,f2
 - [x] order by
+- [ ] post many
 - [ ] escape select
 - [ ] post nested json
 - [ ] json operations

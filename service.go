@@ -21,101 +21,6 @@ type Response struct {
 	Data any    `json:"data,omitempty"`
 }
 
-type PostData struct {
-	objects []map[string]any
-}
-
-type PostQuery struct {
-	index   int
-	columns []string
-	vals    []string
-	args    []any
-}
-
-// valuesQuery convert post data to values query for insertion
-func (pd *PostData) valuesQuery() (*PostQuery, error) {
-	objects := pd.objects
-	if len(objects) == 0 {
-		return nil, fmt.Errorf("empty data")
-	}
-
-	columns := make([]string, 0, len(objects[0]))
-	vals := make([]string, 0, len(objects))
-	args := make([]any, 0, cap(columns)*cap(vals))
-	first := true
-	index := 1
-	for _, object := range objects {
-		val := make([]string, 0, len(object))
-		if first {
-			for k, v := range object {
-				columns = append(columns, k)
-				val = append(val, fmt.Sprintf("$%d", index))
-				args = append(args, v)
-				index++
-			}
-			first = false
-		} else {
-			if !identKeys(object, columns) {
-				return nil, fmt.Errorf("columns must be same for all objects, invalid object: %v", object)
-			}
-			// consistent column order with first object
-			for _, c := range columns {
-				val = append(val, fmt.Sprintf("$%d", index))
-				args = append(args, object[c])
-				index++
-			}
-		}
-		vals = append(vals, fmt.Sprintf("(%s)", strings.Join(val, ",")))
-	}
-	return &PostQuery{
-		index, columns, vals, args,
-	}, nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler
-func (pd *PostData) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 {
-		return fmt.Errorf("no bytes to unmarshal")
-	}
-	// See if we can guess based on the first character
-	switch b[0] {
-	case '{':
-		return pd.unmarshalSingle(b)
-	case '[':
-		return pd.unmarshalMany(b)
-	}
-	// This shouldn't really happen as the standard library seems to strip
-	// whitespace from the bytes being passed in, but just in case let's guess at
-	// multiple tags and fall back to a single one if that doesn't work.
-	err := pd.unmarshalMany(b)
-	if err != nil {
-		return pd.unmarshalSingle(b)
-	}
-	return nil
-}
-
-func (pd *PostData) unmarshalSingle(b []byte) error {
-	var data map[string]any
-	err := json.Unmarshal(b, &data)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal single data, %v", err)
-	}
-
-	pd.objects = []map[string]any{data}
-	return nil
-}
-
-func (pd *PostData) unmarshalMany(b []byte) error {
-	var data []map[string]any
-	err := json.Unmarshal(b, &data)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal many data, %v", err)
-	}
-
-	pd.objects = data
-	return nil
-}
-
 type Service struct {
 	db     *sql.DB
 	tables map[string]struct{}
@@ -316,6 +221,10 @@ func (s *Service) get(r *http.Request, tableName string) *Response {
 	// query by array:
 	//   http get "localhost:8080/artists?ArtistId=in.(1,2)"
 	values := r.URL.Query()
+	if _, ok := values["count"]; ok {
+		return s.count(r, tableName)
+	}
+
 	var sqlBuilder strings.Builder
 	selects := buildSelects(values)
 	sqlBuilder.WriteString(fmt.Sprintf("SELECT %s FROM %s", selects, tableName))
@@ -348,12 +257,39 @@ func (s *Service) get(r *http.Request, tableName string) *Response {
 			Msg:  err.Error(),
 		}
 	}
+	var data any = objects
+	if _, ok := values["singular"]; ok {
+		if len(objects) != 1 {
+			return &Response{
+				Code: http.StatusBadRequest,
+				Msg:  fmt.Sprintf("expect singular data, but got %d rows", len(objects)),
+			}
+		}
+		data = objects[0]
+	}
+	return &Response{
+		Code: http.StatusOK,
+		Msg:  "success",
+		Data: data,
+	}
+}
+
+func (s *Service) count(r *http.Request, tableName string) *Response {
+	sql := fmt.Sprintf("SELECT COUNT(1) as count FROM %s", tableName)
+	rows, err := s.fetchData(r.Context(), sql)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			Msg:  err.Error(),
+		}
+	}
 
 	return &Response{
 		Code: http.StatusOK,
 		Msg:  "success",
-		Data: objects,
+		Data: rows[0],
 	}
+
 }
 
 // execQuery ...
