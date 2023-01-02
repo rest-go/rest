@@ -1,9 +1,9 @@
 # Rest
 Logo
 
-Visit https://rest-go.com for the full documentation, examples and guides.
+Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite are supported for now.
 
-Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite are supported for now, other database that has [a driver in Golang](https://github.com/golang/go/wiki/SQLDrivers) could be added with little efforts in theory, and might be added in the future.
+Visit https://rest-go.com for the full documentation, examples and guides.
 
 # Guide
 ## Install
@@ -75,17 +75,16 @@ curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>
 - [x] order by
 - [x] count
 - [x] post many
-- [ ] application/x-www-form-urlencoded
-- [ ] Resource Embedding
-- [ ] escape field name
-- [x] json (postgres, operations, nested post/get)
-- [ ] json (mysql & sqlite)
-- [ ] Logical operators(and/or)
-- [ ] debug output sql & args
+- [x] debug output sql & args
 - [ ] test
 - [ ] log level
 - [ ] security
 - [ ] documentation
+- [x] json (postgres, operations, nested post/get)
+- [ ] json (mysql & sqlite)
+- [ ] Resource Embedding(one,many)
+- [ ] Logical operators(or, and is already in code)
+- [ ] escape field name
+- [ ] application/x-www-form-urlencoded
 - [ ] open api
 - [ ] web management
-

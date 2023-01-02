@@ -133,6 +133,11 @@ func identKeys(m map[string]any, keys []string) bool {
 	return true
 }
 
+func isDebug(v url.Values) bool {
+	_, ok := v["debug"]
+	return ok
+}
+
 func buildColumn(c string, as bool) (string, error) {
 	isJSON := false
 	columnName := c

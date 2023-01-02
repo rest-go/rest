@@ -26,6 +26,7 @@ type Service struct {
 	tables map[string]struct{}
 }
 
+// TODO: accept db config
 func NewService(url string, limitedTables ...string) *Service {
 	// Opening a driver typically will not attempt to connect to the database.
 	parts := strings.SplitN(url, "://", 2)
@@ -66,6 +67,19 @@ func NewService(url string, limitedTables ...string) *Service {
 	}
 }
 
+func (s *Service) debug(sql string, args ...any) *Response {
+	return &Response{
+		Code: http.StatusOK,
+		Msg:  "success",
+		Data: struct {
+			Sql  string `json:"sql"`
+			Args []any  `json:"args"`
+		}{
+			sql, args,
+		},
+	}
+}
+
 func (s *Service) json(w http.ResponseWriter, res *Response) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(res); err != nil {
@@ -76,6 +90,14 @@ func (s *Service) json(w http.ResponseWriter, res *Response) {
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var res *Response
 	table := strings.Trim(r.URL.Path, "/")
+	if table == "" {
+		res = &Response{
+			Code: http.StatusOK,
+			Msg:  "rest server is up and running",
+		}
+		s.json(w, res)
+		return
+	}
 	if len(s.tables) > 0 {
 		if _, ok := s.tables[table]; !ok {
 			res = &Response{
@@ -123,6 +145,9 @@ func (s *Service) create(r *http.Request, tableName string) *Response {
 	}
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", tableName, strings.Join(query.columns, ","), strings.Join(query.vals, ","))
+	if isDebug(r.URL.Query()) {
+		return s.debug(sql)
+	}
 	rows, err := s.execQuery(r.Context(), sql, query.args...)
 	if err != nil {
 		return &Response{
@@ -153,7 +178,12 @@ func (s *Service) delete(r *http.Request, tableName string) *Response {
 		sqlBuilder.WriteString(query)
 	}
 
-	rows, err := s.execQuery(r.Context(), sqlBuilder.String(), args...)
+	sql := sqlBuilder.String()
+	if isDebug(r.URL.Query()) {
+		return s.debug(sql, args...)
+	}
+
+	rows, err := s.execQuery(r.Context(), sql, args...)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
@@ -199,7 +229,11 @@ func (s *Service) update(r *http.Request, tableName string) *Response {
 		args = append(args, args2...)
 	}
 
-	rows, err := s.execQuery(r.Context(), sqlBuilder.String(), args...)
+	sql := sqlBuilder.String()
+	if isDebug(r.URL.Query()) {
+		return s.debug(sql, args...)
+	}
+	rows, err := s.execQuery(r.Context(), sql, args...)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
@@ -250,7 +284,11 @@ func (s *Service) get(r *http.Request, tableName string) *Response {
 		sqlBuilder.WriteString(fmt.Sprintf("%d", (page-1)*pageSize))
 	}
 
-	objects, err := s.fetchData(r.Context(), sqlBuilder.String(), args...)
+	sql := sqlBuilder.String()
+	if isDebug(r.URL.Query()) {
+		return s.debug(sql, args...)
+	}
+	objects, err := s.fetchData(r.Context(), sql, args...)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
