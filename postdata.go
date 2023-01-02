@@ -12,7 +12,7 @@ import (
 // vals=["$1,$2", "$3,$4"]
 // args=[v1,v2,v3,v4]
 type PostQuery struct {
-	index   int
+	index   int // index for next field, args number plus 1
 	columns []string
 	vals    []string
 	args    []any
@@ -29,31 +29,27 @@ func (pd *PostData) valuesQuery() (*PostQuery, error) {
 		return nil, fmt.Errorf("empty data")
 	}
 
+	// use first object's keys as columns
 	columns := make([]string, 0, len(objects[0]))
+	for k := range objects[0] {
+		columns = append(columns, k)
+	}
+
+	// build vals and args
 	vals := make([]string, 0, len(objects))
 	args := make([]any, 0, cap(columns)*cap(vals))
-	first := true
 	index := 1
-	for _, object := range objects {
+	for i, object := range objects {
 		val := make([]string, 0, len(object))
-		if first {
-			for k, v := range object {
-				columns = append(columns, k)
-				val = append(val, fmt.Sprintf("$%d", index))
-				args = append(args, v)
-				index++
-			}
-			first = false
-		} else {
-			if !identKeys(object, columns) {
-				return nil, fmt.Errorf("columns must be same for all objects, invalid object: %v", object)
-			}
-			// consistent column order with first object
-			for _, c := range columns {
-				val = append(val, fmt.Sprintf("$%d", index))
-				args = append(args, object[c])
-				index++
-			}
+		if i > 0 && !identKeys(object, columns) {
+			// validate object's keys with columns
+			return nil, fmt.Errorf("columns must be same for all objects, invalid object: %v", object)
+		}
+		// consistent column order with first object
+		for _, c := range columns {
+			val = append(val, fmt.Sprintf("$%d", index))
+			args = append(args, object[c])
+			index++
 		}
 		vals = append(vals, fmt.Sprintf("(%s)", strings.Join(val, ",")))
 	}

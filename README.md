@@ -76,6 +76,7 @@ curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>
 - [x] count
 - [x] post many
 - [x] debug output sql & args
+- [ ] common types(int, char, timestamp, decimal)
 - [ ] test
 - [ ] log level
 - [ ] security

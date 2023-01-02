@@ -70,7 +70,7 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 	args := make([]any, 0, len(query))
 	first := true
 	for k, v := range query {
-		if _, ok := ReservedKeys[k]; ok {
+		if _, ok := ReservedWords[k]; ok {
 			continue
 		}
 		vals := strings.Split(v[0], ".")
@@ -79,7 +79,7 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 			continue
 		}
 		op, val := vals[0], vals[1]
-		operation, ok := Operations[op]
+		operator, ok := Operators[op]
 		if !ok {
 			log.Print("unsupported op: ", op)
 			continue
@@ -99,7 +99,7 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 			queryBuilder.WriteString(" in ")
 			queryBuilder.WriteString(val)
 		} else {
-			queryBuilder.WriteString(operation)
+			queryBuilder.WriteString(operator)
 			queryBuilder.WriteString(fmt.Sprintf("$%d", index))
 			args = append(args, val)
 			index++

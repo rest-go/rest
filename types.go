@@ -22,7 +22,7 @@ var TypeConverters = map[string]TypeConverter{
 	DEFAULT:     func(i any) any { return i.(*sql.NullString).String },
 }
 
-var Operations = map[string]string{
+var Operators = map[string]string{
 	"eq":    " = ",
 	"ne":    " <> ",
 	"gt":    " > ",
@@ -36,7 +36,8 @@ var Operations = map[string]string{
 	"cd":    " <@ ",
 }
 
-var ReservedKeys = map[string]struct{}{
+var ReservedWords = map[string]struct{}{
 	"select": {},
 	"order":  {},
+	"count":  {},
 }
