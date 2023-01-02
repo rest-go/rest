@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -29,7 +30,18 @@ func buildSelects(values url.Values) string {
 	if len(selects) == 0 {
 		return "*"
 	}
-	return selects[0]
+
+	columns := strings.Split(selects[0], ",")
+	for i, c := range columns {
+		// handle json operations
+		column, err := buildColumn(c, true)
+		if err != nil {
+			log.Print("invalid column: ", c)
+			continue
+		}
+		columns[i] = column
+	}
+	return strings.Join(columns, ",")
 }
 
 // buildOrderQuery...
@@ -70,7 +82,12 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 			queryBuilder.WriteString(" AND ")
 		}
 
-		queryBuilder.WriteString(k)
+		column, err := buildColumn(k, false)
+		if err != nil {
+			log.Print("invalid field: ", k)
+			continue
+		}
+		queryBuilder.WriteString(column)
 		if op == "in" {
 			queryBuilder.WriteString(" in ")
 			queryBuilder.WriteString(val)
@@ -115,4 +132,34 @@ func identKeys(m map[string]any, keys []string) bool {
 		}
 	}
 	return true
+}
+
+func buildColumn(c string, as bool) (string, error) {
+	isJSON := false
+	columnName := c
+	asName := ""
+	if strings.Contains(c, "->") {
+		parts := strings.SplitN(c, "->", 2)
+		if len(parts) != 2 {
+			return "", errors.New("invalid json operation")
+		}
+		columnName = fmt.Sprintf("%s->'%s'", parts[0], parts[1])
+		isJSON = true
+		asName = parts[1]
+	}
+	if strings.Contains(c, "->>") {
+		parts := strings.SplitN(c, "->>", 2)
+		if len(parts) != 2 {
+			return "", errors.New("invalid json operation")
+		}
+		columnName = fmt.Sprintf("%s->>'%s'", parts[0], parts[1])
+
+		isJSON = true
+		asName = parts[1]
+	}
+	if isJSON && as {
+		columnName += fmt.Sprintf(" AS %s", asName)
+	}
+
+	return columnName, nil
 }
