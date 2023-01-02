@@ -33,7 +33,6 @@ func buildSelects(values url.Values) string {
 
 	columns := strings.Split(selects[0], ",")
 	for i, c := range columns {
-		// handle json operations
 		column, err := buildColumn(c, true)
 		if err != nil {
 			log.Print("invalid column: ", c)

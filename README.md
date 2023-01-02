@@ -78,8 +78,10 @@ curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>
 - [ ] application/x-www-form-urlencoded
 - [ ] Resource Embedding
 - [ ] escape field name
-- [x] json (operations, nested post/get)
+- [x] json (postgres, operations, nested post/get)
+- [ ] json (mysql & sqlite)
 - [ ] Logical operators(and/or)
+- [ ] debug output sql & args
 - [ ] test
 - [ ] log level
 - [ ] security
