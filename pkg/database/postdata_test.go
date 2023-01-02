@@ -1,4 +1,4 @@
-package main
+package database
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ func TestPostData(t *testing.T) {
 		err           error
 		data          []byte
 		unmarshalData any
-		query         *PostQuery
+		query         *ValuesQuery
 	}{
 		{
 			name: "unmarshal single",
@@ -24,11 +24,11 @@ func TestPostData(t *testing.T) {
 					"id":   float64(1),
 				},
 			},
-			query: &PostQuery{
-				index:   3,
-				columns: []string{"id", "name"},
-				vals:    []string{"($1,$2)"},
-				args:    []any{"hello world", float64(1)},
+			query: &ValuesQuery{
+				Index:   3,
+				Columns: []string{"id", "name"},
+				Vals:    []string{"($1,$2)"},
+				Args:    []any{"hello world", float64(1)},
 			},
 		},
 		{
@@ -44,11 +44,11 @@ func TestPostData(t *testing.T) {
 					"id":   float64(2),
 				},
 			},
-			query: &PostQuery{
-				index:   5,
-				columns: []string{"id", "name"},
-				vals:    []string{"($1,$2)", "($3,$4)"},
-				args:    []any{"hello world", float64(1), "rest-go", float64(2)},
+			query: &ValuesQuery{
+				Index:   5,
+				Columns: []string{"id", "name"},
+				Vals:    []string{"($1,$2)", "($3,$4)"},
+				Args:    []any{"hello world", float64(1), "rest-go", float64(2)},
 			},
 		},
 	}
@@ -58,12 +58,12 @@ func TestPostData(t *testing.T) {
 			err := json.Unmarshal(test.data, &data)
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, test.unmarshalData, data.objects)
-			query, err := data.valuesQuery()
+			query, err := data.ValuesQuery()
 			assert.Nil(t, err)
-			assert.Equal(t, test.query.index, query.index, "index not equal")
-			assert.ElementsMatch(t, test.query.columns, query.columns, "columns not equal")
-			assert.ElementsMatch(t, test.query.vals, query.vals, "vals not equal")
-			assert.ElementsMatch(t, test.query.args, query.args, "args not equal")
+			assert.Equal(t, test.query.Index, query.Index, "index not equal")
+			assert.ElementsMatch(t, test.query.Columns, query.Columns, "columns not equal")
+			assert.ElementsMatch(t, test.query.Vals, query.Vals, "vals not equal")
+			assert.ElementsMatch(t, test.query.Args, query.Args, "args not equal")
 		})
 	}
 	t.Run("invalid json data", func(t *testing.T) {

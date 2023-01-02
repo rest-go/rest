@@ -7,8 +7,6 @@ import (
 )
 
 func parseFlags() *Config {
-	// Set up a CLI flag called "-config" to allow users
-	// to supply the configuration file
 	addr := flag.String("addr", ":3000", "listen addr")
 	url := flag.String("db.url", "", "db url")
 	cfgPath := flag.String("config", "", "path to config file")

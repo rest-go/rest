@@ -1,40 +1,19 @@
-package main
+package database
 
 import (
 	"errors"
 	"fmt"
 	"log"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 )
 
-var tableNameReg = regexp.MustCompile("^[_a-zA-Z][_a-zA-Z0-9]*$")
+type Query url.Values
 
-func isValidTableName(tableName string) bool {
-	log.Printf("tablename: %s", tableName)
-	return tableNameReg.MatchString(tableName)
-}
-
-func extractPage(values url.Values) (int, int) {
-	page := 1
-	pageSize := 100
-	if p, ok := values["page"]; ok {
-		page, _ = strconv.Atoi(p[0])
-		delete(values, "page")
-	}
-	if p, ok := values["page_size"]; ok {
-		pageSize, _ = strconv.Atoi(p[0])
-		delete(values, "page_size")
-	}
-	log.Print("extract page: ", page, pageSize)
-	return page, pageSize
-}
-
-// buildSelects...
-func buildSelects(values url.Values) string {
-	selects := values["select"]
+// SelectQuery return sql projection string
+func (q Query) SelectQuery() string {
+	selects := q["select"]
 	if len(selects) == 0 {
 		return "*"
 	}
@@ -51,25 +30,25 @@ func buildSelects(values url.Values) string {
 	return strings.Join(columns, ",")
 }
 
-// buildOrderQuery...
-func buildOrderQuery(values url.Values) string {
-	orders := values["order"]
+// OrderQuery returns sql order query string
+func (q Query) OrderQuery() string {
+	orders := q["order"]
 	if len(orders) == 0 {
 		return ""
 	}
 	return strings.ReplaceAll(orders[0], ".", " ")
 }
 
-// buildWhereQuery build sql where clause from url values
-func buildWhereQuery(index int, query url.Values) (int, string, []any) {
-	if len(query) == 0 {
+// WhereQuery returns sql and args for where clause
+func (q Query) WhereQuery(index int) (int, string, []any) {
+	if len(q) == 0 {
 		return index, "", nil
 	}
 
 	var queryBuilder strings.Builder
-	args := make([]any, 0, len(query))
+	args := make([]any, 0, len(q))
 	first := true
-	for k, v := range query {
+	for k, v := range q {
 		if _, ok := ReservedWords[k]; ok {
 			continue
 		}
@@ -110,39 +89,30 @@ func buildWhereQuery(index int, query url.Values) (int, string, []any) {
 	return index, queryBuilder.String(), args
 }
 
-func buildSetQuery(index int, data map[string]any) (int, string, []any) {
-	if len(data) == 0 {
-		return index, "", nil
+func (q Query) Page() (int, int) {
+	page := 1
+	pageSize := 100
+	if p, ok := q["page"]; ok {
+		page, _ = strconv.Atoi(p[0])
 	}
-
-	var queryBuilder strings.Builder
-	args := make([]any, 0, len(data))
-	for k, v := range data {
-		queryBuilder.WriteString(k)
-		queryBuilder.WriteString(" = ")
-		queryBuilder.WriteString(fmt.Sprintf("$%d", index))
-		args = append(args, v)
-		index++
+	if p, ok := q["page_size"]; ok {
+		pageSize, _ = strconv.Atoi(p[0])
 	}
-
-	return index, queryBuilder.String(), args
+	return page, pageSize
 }
 
-func identKeys(m map[string]any, keys []string) bool {
-	if len(m) != len(keys) {
-		return false
-	}
-
-	for _, k := range keys {
-		if _, ok := m[k]; !ok {
-			return false
-		}
-	}
-	return true
+func (q Query) IsDebug() bool {
+	_, ok := q["debug"]
+	return ok
 }
 
-func isDebug(v url.Values) bool {
-	_, ok := v["debug"]
+func (q Query) IsCount() bool {
+	_, ok := q["count"]
+	return ok
+}
+
+func (q Query) IsSingular() bool {
+	_, ok := q["singular"]
 	return ok
 }
 

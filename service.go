@@ -13,20 +13,25 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
+
+	"github.com/shellfly/rest/pkg/database"
 )
 
+// A Response serves JSON output for all restful apis
 type Response struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
 	Data any    `json:"data,omitempty"`
 }
 
+// Service is the representation of a http handler which handles CRUD operations.
 type Service struct {
 	db     *sql.DB
 	tables map[string]struct{}
 }
 
-// TODO: accept db config
+// TODO: accept function options to config database
+// NewService returns a Service pointer.
 func NewService(url string, limitedTables ...string) *Service {
 	// Opening a driver typically will not attempt to connect to the database.
 	parts := strings.SplitN(url, "://", 2)
@@ -88,18 +93,17 @@ func (s *Service) json(w http.ResponseWriter, res *Response) {
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var res *Response
 	table := strings.Trim(r.URL.Path, "/")
 	if table == "" {
-		res = &Response{
+		res := &Response{
 			Code: http.StatusOK,
 			Msg:  "rest server is up and running",
 		}
 		s.json(w, res)
 		return
 	}
-	if !isValidTableName(table) {
-		res = &Response{
+	if !database.IsValidTableName(table) {
+		res := &Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("invalid table name: %s", table),
 		}
@@ -109,7 +113,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if len(s.tables) > 0 {
 		if _, ok := s.tables[table]; !ok {
-			res = &Response{
+			res := &Response{
 				Code: http.StatusNotFound,
 				Msg:  fmt.Sprintf("table not supported: %s", table),
 			}
@@ -118,15 +122,17 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var res *Response
+	query := database.Query(r.URL.Query())
 	switch r.Method {
 	case "POST":
-		res = s.create(r, table)
+		res = s.create(r, table, query)
 	case "DELETE":
-		res = s.delete(r, table)
+		res = s.delete(r, table, query)
 	case "PUT", "PATCH":
-		res = s.update(r, table)
+		res = s.update(r, table, query)
 	case "GET":
-		res = s.get(r, table)
+		res = s.get(r, table, query)
 	default:
 		res = &Response{
 			Code: http.StatusBadRequest,
@@ -136,38 +142,40 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.json(w, res)
 }
 
-func (s *Service) create(r *http.Request, tableName string) *Response {
-	var data PostData
+func (s *Service) create(r *http.Request, tableName string, query database.Query) *Response {
+	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Msg:  fmt.Sprintf("failed to parse http body as json data, %v", err),
+			Msg:  fmt.Sprintf("failed to parse post json data, %v", err),
 		}
 	}
-	query, err := data.valuesQuery()
+	valuesQuery, err := data.ValuesQuery()
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Msg:  fmt.Sprintf("failed to prepare sql query, %v", err),
+			Msg:  fmt.Sprintf("failed to prepare values query, %v", err),
 		}
 	}
 
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", tableName, strings.Join(query.columns, ","), strings.Join(query.vals, ","))
-	if isDebug(r.URL.Query()) {
-		return s.debug(sql)
+	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", tableName, strings.Join(valuesQuery.Columns, ","), strings.Join(valuesQuery.Vals, ","))
+	args := valuesQuery.Args
+	if query.IsDebug() {
+		return s.debug(sql, args...)
 	}
-	rows, err := s.execQuery(r.Context(), sql, query.args...)
+
+	rows, err := s.execQuery(r.Context(), sql, args...)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
 			Msg:  err.Error(),
 		}
 	}
-	if rows != int64(len(query.vals)) {
+	if rows != int64(len(valuesQuery.Vals)) {
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Msg:  fmt.Sprintf("expected to insert %d rows, but affected %d rows", len(query.vals), rows),
+			Msg:  fmt.Sprintf("expected to insert %d rows, but affected %d rows", len(valuesQuery.Vals), rows),
 		}
 	}
 
@@ -177,18 +185,18 @@ func (s *Service) create(r *http.Request, tableName string) *Response {
 	}
 }
 
-func (s *Service) delete(r *http.Request, tableName string) *Response {
+func (s *Service) delete(r *http.Request, tableName string, query database.Query) *Response {
 	var sqlBuilder strings.Builder
 	sqlBuilder.WriteString("DELETE FROM ")
 	sqlBuilder.WriteString(tableName)
-	_, query, args := buildWhereQuery(1, r.URL.Query())
-	if len(query) > 0 {
+	_, whereQuery, args := query.WhereQuery(1)
+	if whereQuery != "" {
 		sqlBuilder.WriteString(" WHERE ")
-		sqlBuilder.WriteString(query)
+		sqlBuilder.WriteString(whereQuery)
 	}
 
 	sql := sqlBuilder.String()
-	if isDebug(r.URL.Query()) {
+	if query.IsDebug() {
 		return s.debug(sql, args...)
 	}
 
@@ -206,42 +214,39 @@ func (s *Service) delete(r *http.Request, tableName string) *Response {
 	}
 }
 
-func (s *Service) update(r *http.Request, tableName string) *Response {
-	var sqlBuilder strings.Builder
-	sqlBuilder.WriteString("UPDATE ")
-	sqlBuilder.WriteString(tableName)
-
-	data := make(map[string]any)
+func (s *Service) update(r *http.Request, tableName string, query database.Query) *Response {
+	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Msg:  fmt.Sprintf("failed to parse http body as json data, %v", err),
+			Msg:  fmt.Sprintf("failed to parse update json data, %v", err),
 		}
 	}
-	if len(data) == 0 {
+	setQuery, err := data.SetQuery(1)
+	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Msg:  "empty data",
+			Msg:  fmt.Sprintf("failed to prepare set query, %v", err),
 		}
 	}
-	log.Printf("get json data: %+v", data)
 
-	index, setQuery, args := buildSetQuery(1, data)
-	sqlBuilder.WriteString(" SET ")
-	sqlBuilder.WriteString(setQuery)
+	var sqlBuilder strings.Builder
+	sqlBuilder.WriteString(fmt.Sprintf("UPDATE %s SET %s", tableName, setQuery.Sql))
 
-	_, query, args2 := buildWhereQuery(index, r.URL.Query())
-	if len(query) > 0 {
+	args := setQuery.Args
+	_, whereQuery, args2 := query.WhereQuery(setQuery.Index)
+	if whereQuery != "" {
 		sqlBuilder.WriteString(" WHERE ")
-		sqlBuilder.WriteString(query)
+		sqlBuilder.WriteString(whereQuery)
 		args = append(args, args2...)
 	}
 
 	sql := sqlBuilder.String()
-	if isDebug(r.URL.Query()) {
+	if query.IsDebug() {
 		return s.debug(sql, args...)
 	}
+
 	rows, err := s.execQuery(r.Context(), sql, args...)
 	if err != nil {
 		return &Response{
@@ -255,37 +260,29 @@ func (s *Service) update(r *http.Request, tableName string) *Response {
 	}
 }
 
-func (s *Service) get(r *http.Request, tableName string) *Response {
-	// Example
-	// fetch all:
-	//   http get "localhost:8080/artists"
-	// fetch by query:
-	//   http get "localhost:8080/artists?ArtistId=eq.1"
-	// query by array:
-	//   http get "localhost:8080/artists?ArtistId=in.(1,2)"
-	values := r.URL.Query()
-	if _, ok := values["count"]; ok {
+func (s *Service) get(r *http.Request, tableName string, query database.Query) *Response {
+	if query.IsCount() {
 		return s.count(r, tableName)
 	}
 
 	var sqlBuilder strings.Builder
-	selects := buildSelects(values)
+	selects := query.SelectQuery()
 	sqlBuilder.WriteString(fmt.Sprintf("SELECT %s FROM %s", selects, tableName))
-	_, query, args := buildWhereQuery(1, values)
-	if len(query) > 0 {
+	_, whereQuery, args := query.WhereQuery(1)
+	if whereQuery != "" {
 		sqlBuilder.WriteString(" WHERE ")
-		sqlBuilder.WriteString(query)
+		sqlBuilder.WriteString(whereQuery)
 	}
 
 	// order
-	order := buildOrderQuery(values)
+	order := query.OrderQuery()
 	if len(order) > 0 {
 		sqlBuilder.WriteString(" ORDER BY ")
 		sqlBuilder.WriteString(order)
 	}
 
 	// page operation
-	page, pageSize := extractPage(values)
+	page, pageSize := query.Page()
 	sqlBuilder.WriteString(" LIMIT ")
 	sqlBuilder.WriteString(fmt.Sprintf("%d", pageSize))
 	if page != 1 {
@@ -294,9 +291,10 @@ func (s *Service) get(r *http.Request, tableName string) *Response {
 	}
 
 	sql := sqlBuilder.String()
-	if isDebug(r.URL.Query()) {
+	if query.IsDebug() {
 		return s.debug(sql, args...)
 	}
+
 	objects, err := s.fetchData(r.Context(), sql, args...)
 	if err != nil {
 		return &Response{
@@ -305,7 +303,7 @@ func (s *Service) get(r *http.Request, tableName string) *Response {
 		}
 	}
 	var data any = objects
-	if _, ok := values["singular"]; ok {
+	if query.IsSingular() {
 		if len(objects) != 1 {
 			return &Response{
 				Code: http.StatusBadRequest,
@@ -322,7 +320,7 @@ func (s *Service) get(r *http.Request, tableName string) *Response {
 }
 
 func (s *Service) count(r *http.Request, tableName string) *Response {
-	sql := fmt.Sprintf("SELECT COUNT(1) as count FROM %s", tableName)
+	sql := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
 	rows, err := s.fetchData(r.Context(), sql)
 	if err != nil {
 		return &Response{
@@ -347,11 +345,11 @@ func (s *Service) execQuery(ctx context.Context, sql string, args ...any) (int64
 
 	result, err := s.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		return 0, fmt.Errorf("failed to insert data to database, %w", err)
+		return 0, fmt.Errorf("failed to exec sql, %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse database rows, %w", err)
+		return 0, fmt.Errorf("failed to get affected rows, %w", err)
 	}
 	return rows, nil
 }
@@ -364,7 +362,7 @@ func (s *Service) fetchData(ctx context.Context, sql string, args ...any) ([]any
 
 	rows, err := s.db.QueryContext(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run query in database, %w", err)
+		return nil, fmt.Errorf("failed to run query, %w", err)
 	}
 	defer rows.Close()
 
@@ -377,18 +375,12 @@ func (s *Service) fetchData(ctx context.Context, sql string, args ...any) ([]any
 	objects := []any{}
 	for rows.Next() {
 		scanArgs := make([]any, count)
-		converters := make([]TypeConverter, count)
+		converters := make([]database.TypeConverter, count)
 		for i, v := range columnTypes {
-			t := v.DatabaseTypeName()
-			if f, ok := Types[t]; ok {
-				scanArgs[i] = f()
-				converters[i] = TypeConverters[t]
-			} else {
-				scanArgs[i] = Types[DEFAULT]()
-				converters[i] = TypeConverters[DEFAULT]
-			}
+			t, converter := database.GetTypeAndConverter(v.DatabaseTypeName())
+			scanArgs[i] = t
+			converters[i] = converter
 		}
-
 		err := rows.Scan(scanArgs...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan data from database, %v", err)
@@ -402,7 +394,6 @@ func (s *Service) fetchData(ctx context.Context, sql string, args ...any) ([]any
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to fetch rows from database, %v", err)
-
 	}
 	return objects, nil
 }

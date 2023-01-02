@@ -1,7 +1,8 @@
-package main
+package database
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -11,11 +12,21 @@ import (
 // columns=["c1", "c2"]
 // vals=["$1,$2", "$3,$4"]
 // args=[v1,v2,v3,v4]
-type PostQuery struct {
-	index   int // index for next field, args number plus 1
-	columns []string
-	vals    []string
-	args    []any
+type ValuesQuery struct {
+	Index   int // index for next field, args number plus 1
+	Columns []string
+	Vals    []string
+	Args    []any
+}
+
+// e.g. UPDATE table SET a="a",b="b"
+// index=3
+// sql="a=$1, b=$2"
+// args=["a", "b"]
+type SetQuery struct {
+	Index int // index for next field, args number plus 1
+	Sql   string
+	Args  []any
 }
 
 type PostData struct {
@@ -23,7 +34,7 @@ type PostData struct {
 }
 
 // valuesQuery convert post data to values query for insertion
-func (pd *PostData) valuesQuery() (*PostQuery, error) {
+func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 	objects := pd.objects
 	if len(objects) == 0 {
 		return nil, fmt.Errorf("empty data")
@@ -53,8 +64,33 @@ func (pd *PostData) valuesQuery() (*PostQuery, error) {
 		}
 		vals = append(vals, fmt.Sprintf("(%s)", strings.Join(val, ",")))
 	}
-	return &PostQuery{
+	return &ValuesQuery{
 		index, columns, vals, args,
+	}, nil
+}
+
+// SetQuery return set sql for update
+// TODO: bulk update
+func (pd *PostData) SetQuery(index int) (*SetQuery, error) {
+	if len(pd.objects) != 1 {
+		return nil, errors.New("wrong set data")
+	}
+
+	data := pd.objects[0]
+	var sqlBuilder strings.Builder
+	args := make([]any, 0, len(data))
+	for k, v := range data {
+		sqlBuilder.WriteString(k)
+		sqlBuilder.WriteString(" = ")
+		sqlBuilder.WriteString(fmt.Sprintf("$%d", index))
+		args = append(args, v)
+		index++
+	}
+	sql := sqlBuilder.String()
+	return &SetQuery{
+		index,
+		sql,
+		args,
 	}, nil
 }
 
@@ -100,4 +136,17 @@ func (pd *PostData) unmarshalMany(b []byte) error {
 
 	pd.objects = data
 	return nil
+}
+
+func identKeys(m map[string]any, keys []string) bool {
+	if len(m) != len(keys) {
+		return false
+	}
+
+	for _, k := range keys {
+		if _, ok := m[k]; !ok {
+			return false
+		}
+	}
+	return true
 }

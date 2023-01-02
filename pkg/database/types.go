@@ -1,4 +1,4 @@
-package main
+package database
 
 import "database/sql"
 
@@ -40,4 +40,12 @@ var ReservedWords = map[string]struct{}{
 	"select": {},
 	"order":  {},
 	"count":  {},
+}
+
+func GetTypeAndConverter(t string) (any, TypeConverter) {
+	if f, ok := Types[t]; ok {
+		return f(), TypeConverters[t]
+	}
+
+	return Types[DEFAULT](), TypeConverters[DEFAULT]
 }

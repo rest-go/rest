@@ -82,7 +82,7 @@ curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>
 - [ ] test
 - [ ] log level
 - [ ] security
-- [ ] documentation
+- [ ] comment/documentation
 - [x] json (postgres, operations, nested post/get)
 - [ ] json (mysql & sqlite)
 - [ ] Resource Embedding(one,many)
