@@ -34,7 +34,7 @@ rest -db.url "sqlite://chinook.db"
 ```
 
 
-### Run rest server in Docker
+### Docker image
 
 ``` bash
 docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
@@ -67,6 +67,15 @@ curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>
 ```
 
 # Using Rest as a Go Library
+
+``` go
+package main
+
+func main(){
+    
+}
+
+```
 
 # Features
 - [x] CRUD

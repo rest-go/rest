@@ -24,15 +24,15 @@ type Response struct {
 	Data any    `json:"data,omitempty"`
 }
 
-// Service is the representation of a http handler which handles CRUD operations.
-type Service struct {
+// Server is the representation of a restful server handler which handles CRUD operations.
+type Server struct {
 	db     *sql.DB
 	tables map[string]struct{}
 }
 
 // TODO: accept function options to config database
-// NewService returns a Service pointer.
-func NewService(url string, limitedTables ...string) *Service {
+// NewServer returns a Service pointer.
+func NewServer(url string, limitedTables ...string) *Server {
 	// Opening a driver typically will not attempt to connect to the database.
 	parts := strings.SplitN(url, "://", 2)
 	if len(parts) != 2 {
@@ -66,13 +66,13 @@ func NewService(url string, limitedTables ...string) *Service {
 		}
 	}
 
-	return &Service{
+	return &Server{
 		db:     db,
 		tables: tables,
 	}
 }
 
-func (s *Service) debug(sql string, args ...any) *Response {
+func (s *Server) debug(sql string, args ...any) *Response {
 	return &Response{
 		Code: http.StatusOK,
 		Msg:  "success",
@@ -85,14 +85,14 @@ func (s *Service) debug(sql string, args ...any) *Response {
 	}
 }
 
-func (s *Service) json(w http.ResponseWriter, res *Response) {
+func (s *Server) json(w http.ResponseWriter, res *Response) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		log.Printf("failed to encode json data, %v", err)
 	}
 }
 
-func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	table := strings.Trim(r.URL.Path, "/")
 	if table == "" {
 		res := &Response{
@@ -142,7 +142,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.json(w, res)
 }
 
-func (s *Service) create(r *http.Request, tableName string, query database.Query) *Response {
+func (s *Server) create(r *http.Request, tableName string, query database.Query) *Response {
 	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -185,7 +185,7 @@ func (s *Service) create(r *http.Request, tableName string, query database.Query
 	}
 }
 
-func (s *Service) delete(r *http.Request, tableName string, query database.Query) *Response {
+func (s *Server) delete(r *http.Request, tableName string, query database.Query) *Response {
 	var sqlBuilder strings.Builder
 	sqlBuilder.WriteString("DELETE FROM ")
 	sqlBuilder.WriteString(tableName)
@@ -214,7 +214,7 @@ func (s *Service) delete(r *http.Request, tableName string, query database.Query
 	}
 }
 
-func (s *Service) update(r *http.Request, tableName string, query database.Query) *Response {
+func (s *Server) update(r *http.Request, tableName string, query database.Query) *Response {
 	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -260,7 +260,7 @@ func (s *Service) update(r *http.Request, tableName string, query database.Query
 	}
 }
 
-func (s *Service) get(r *http.Request, tableName string, query database.Query) *Response {
+func (s *Server) get(r *http.Request, tableName string, query database.Query) *Response {
 	if query.IsCount() {
 		return s.count(r, tableName)
 	}
@@ -319,7 +319,7 @@ func (s *Service) get(r *http.Request, tableName string, query database.Query) *
 	}
 }
 
-func (s *Service) count(r *http.Request, tableName string) *Response {
+func (s *Server) count(r *http.Request, tableName string) *Response {
 	sql := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
 	rows, err := s.fetchData(r.Context(), sql)
 	if err != nil {
@@ -338,7 +338,7 @@ func (s *Service) count(r *http.Request, tableName string) *Response {
 }
 
 // execQuery ...
-func (s *Service) execQuery(ctx context.Context, sql string, args ...any) (int64, error) {
+func (s *Server) execQuery(ctx context.Context, sql string, args ...any) (int64, error) {
 	log.Printf("exec query in database, sql: %v, args: %v", sql, args)
 	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
@@ -355,7 +355,7 @@ func (s *Service) execQuery(ctx context.Context, sql string, args ...any) (int64
 }
 
 // fetchData ...
-func (s *Service) fetchData(ctx context.Context, sql string, args ...any) ([]any, error) {
+func (s *Server) fetchData(ctx context.Context, sql string, args ...any) ([]any, error) {
 	log.Printf("fetch data in database, sql: %v, args: %v", sql, args)
 	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()

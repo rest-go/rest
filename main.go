@@ -33,7 +33,7 @@ func parseFlags() *Config {
 func main() {
 	cfg := parseFlags()
 
-	s := NewService(cfg.DB.Url, cfg.DB.Tables...)
+	s := NewServer(cfg.DB.Url, cfg.DB.Tables...)
 	log.Print("listen on addr: ", cfg.Addr)
 	log.Fatal(http.ListenAndServe(cfg.Addr, s))
 }
