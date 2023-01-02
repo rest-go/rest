@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+// e.g. INSERT INTO a (c1, c2) VALUES (v1,v2),(v3,v4)
+// index=4
+// columns=["c1", "c2"]
+// vals=["$1,$2", "$3,$4"]
+// args=[v1,v2,v3,v4]
 type PostQuery struct {
 	index   int
 	columns []string
@@ -62,7 +67,7 @@ func (pd *PostData) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 {
 		return fmt.Errorf("no bytes to unmarshal")
 	}
-	// See if we can guess based on the first character
+	// guess based on the first character
 	switch b[0] {
 	case '{':
 		return pd.unmarshalSingle(b)

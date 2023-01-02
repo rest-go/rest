@@ -98,6 +98,15 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.json(w, res)
 		return
 	}
+	if !isValidTableName(table) {
+		res = &Response{
+			Code: http.StatusBadRequest,
+			Msg:  fmt.Sprintf("invalid table name: %s", table),
+		}
+		s.json(w, res)
+		return
+	}
+
 	if len(s.tables) > 0 {
 		if _, ok := s.tables[table]; !ok {
 			res = &Response{

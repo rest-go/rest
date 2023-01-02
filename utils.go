@@ -5,9 +5,17 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+var tableNameReg = regexp.MustCompile("^[_a-zA-Z][_a-zA-Z0-9]*$")
+
+func isValidTableName(tableName string) bool {
+	log.Printf("tablename: %s", tableName)
+	return tableNameReg.MatchString(tableName)
+}
 
 func extractPage(values url.Values) (int, int) {
 	page := 1
