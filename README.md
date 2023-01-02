@@ -1,6 +1,8 @@
 # Rest
 Logo
 
+![ci](https://github.com/shellfly/rest-go/actions/workflows/ci.yml/badge.svg)
+
 Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite are supported for now.
 
 Visit https://rest-go.com for the full documentation, examples and guides.
