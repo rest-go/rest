@@ -1,18 +1,12 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
-	"time"
-
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "modernc.org/sqlite"
 
 	"github.com/shellfly/rest/pkg/database"
 )
@@ -33,24 +27,9 @@ type Server struct {
 // TODO: accept function options to config database
 // NewServer returns a Service pointer.
 func NewServer(url string, limitedTables ...string) *Server {
-	// Opening a driver typically will not attempt to connect to the database.
-	parts := strings.SplitN(url, "://", 2)
-	if len(parts) != 2 {
-		log.Fatal("invalid db url: ", url)
-	}
-	log.Print("open db url: ", url)
-	driver, dsn := parts[0], parts[1]
-	if driver == "postgres" {
-		driver = "pgx"
-		dsn = url
-	}
-	db, err := sql.Open(driver, dsn)
+	log.Printf("connecting to database: %s", url)
+	db, err := database.Open(url)
 	if err != nil {
-		// This will not be a connection error, but a DSN parse error or
-		// another initialization error.
-		log.Fatal(err)
-	}
-	if err := db.Ping(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -87,6 +66,7 @@ func (s *Server) debug(sql string, args ...any) *Response {
 
 func (s *Server) json(w http.ResponseWriter, res *Response) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(res.Code)
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		log.Printf("failed to encode json data, %v", err)
 	}
@@ -165,11 +145,11 @@ func (s *Server) create(r *http.Request, tableName string, query database.Query)
 		return s.debug(sql, args...)
 	}
 
-	rows, err := s.execQuery(r.Context(), sql, args...)
-	if err != nil {
+	rows, dbErr := database.ExecQuery(r.Context(), s.db, sql, args...)
+	if dbErr != nil {
 		return &Response{
-			Code: http.StatusInternalServerError,
-			Msg:  err.Error(),
+			Code: dbErr.Code,
+			Msg:  dbErr.Msg,
 		}
 	}
 	if rows != int64(len(valuesQuery.Vals)) {
@@ -200,11 +180,11 @@ func (s *Server) delete(r *http.Request, tableName string, query database.Query)
 		return s.debug(sql, args...)
 	}
 
-	rows, err := s.execQuery(r.Context(), sql, args...)
-	if err != nil {
+	rows, dbErr := database.ExecQuery(r.Context(), s.db, sql, args...)
+	if dbErr != nil {
 		return &Response{
-			Code: http.StatusInternalServerError,
-			Msg:  err.Error(),
+			Code: dbErr.Code,
+			Msg:  dbErr.Msg,
 		}
 	}
 
@@ -247,11 +227,11 @@ func (s *Server) update(r *http.Request, tableName string, query database.Query)
 		return s.debug(sql, args...)
 	}
 
-	rows, err := s.execQuery(r.Context(), sql, args...)
-	if err != nil {
+	rows, dbErr := database.ExecQuery(r.Context(), s.db, sql, args...)
+	if dbErr != nil {
 		return &Response{
-			Code: http.StatusInternalServerError,
-			Msg:  err.Error(),
+			Code: dbErr.Code,
+			Msg:  dbErr.Msg,
 		}
 	}
 	return &Response{
@@ -295,11 +275,11 @@ func (s *Server) get(r *http.Request, tableName string, query database.Query) *R
 		return s.debug(sql, args...)
 	}
 
-	objects, err := s.fetchData(r.Context(), sql, args...)
-	if err != nil {
+	objects, dbErr := database.FetchData(r.Context(), s.db, sql, args...)
+	if dbErr != nil {
 		return &Response{
-			Code: http.StatusInternalServerError,
-			Msg:  err.Error(),
+			Code: dbErr.Code,
+			Msg:  dbErr.Msg,
 		}
 	}
 	var data any = objects
@@ -321,11 +301,11 @@ func (s *Server) get(r *http.Request, tableName string, query database.Query) *R
 
 func (s *Server) count(r *http.Request, tableName string) *Response {
 	sql := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
-	rows, err := s.fetchData(r.Context(), sql)
-	if err != nil {
+	rows, dbErr := database.FetchData(r.Context(), s.db, sql)
+	if dbErr != nil {
 		return &Response{
-			Code: http.StatusInternalServerError,
-			Msg:  err.Error(),
+			Code: dbErr.Code,
+			Msg:  dbErr.Msg,
 		}
 	}
 
@@ -335,65 +315,4 @@ func (s *Server) count(r *http.Request, tableName string) *Response {
 		Data: rows[0],
 	}
 
-}
-
-// execQuery ...
-func (s *Server) execQuery(ctx context.Context, sql string, args ...any) (int64, error) {
-	log.Printf("exec query in database, sql: %v, args: %v", sql, args)
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
-	defer cancel()
-
-	result, err := s.db.ExecContext(ctx, sql, args...)
-	if err != nil {
-		return 0, fmt.Errorf("failed to exec sql, %w", err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get affected rows, %w", err)
-	}
-	return rows, nil
-}
-
-// fetchData ...
-func (s *Server) fetchData(ctx context.Context, sql string, args ...any) ([]any, error) {
-	log.Printf("fetch data in database, sql: %v, args: %v", sql, args)
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
-	defer cancel()
-
-	rows, err := s.db.QueryContext(ctx, sql, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run query, %w", err)
-	}
-	defer rows.Close()
-
-	columnTypes, err := rows.ColumnTypes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get columns from database, %v", err)
-	}
-
-	count := len(columnTypes)
-	objects := []any{}
-	for rows.Next() {
-		scanArgs := make([]any, count)
-		converters := make([]database.TypeConverter, count)
-		for i, v := range columnTypes {
-			t, converter := database.GetTypeAndConverter(v.DatabaseTypeName())
-			scanArgs[i] = t
-			converters[i] = converter
-		}
-		err := rows.Scan(scanArgs...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan data from database, %v", err)
-		}
-
-		object := make(map[string]any, count)
-		for i, v := range columnTypes {
-			object[v.Name()] = converters[i](scanArgs[i])
-		}
-		objects = append(objects, object)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to fetch rows from database, %v", err)
-	}
-	return objects, nil
 }

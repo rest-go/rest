@@ -90,10 +90,12 @@ func main(){
 - [ ] common types(int, char, timestamp, decimal)
 - [ ] test
 - [ ] log level
-- [ ] security
+- [ ] security sql
+- [ ] auth(http & jwt)
 - [ ] comment/documentation
 - [x] json (postgres, operations, nested post/get)
 - [ ] json (mysql & sqlite)
+# Road map
 - [ ] Resource Embedding(one,many)
 - [ ] Logical operators(or, and is already in code)
 - [ ] escape field name
