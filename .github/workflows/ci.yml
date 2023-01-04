@@ -37,5 +37,5 @@ jobs:
           go vet ./...
       - name: Unit tests
         run: |
-          go test ./... -coverprofile coverage.out -covermode count
+          go test ./... -race -v -coverprofile coverage.out -covermode count
           go tool cover -func coverage.out

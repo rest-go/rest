@@ -1,6 +1,9 @@
 package database
 
-import "database/sql"
+import (
+	"database/sql"
+	"strings"
+)
 
 const DEFAULT = "__default__"
 
@@ -11,6 +14,7 @@ var Types = map[string]func() any{
 	"INTEGER":   func() any { return new(sql.NullInt32) },
 	"INT4":      func() any { return new(sql.NullInt64) },
 	"TIMESTAMP": func() any { return new(sql.NullTime) },
+	"NUMERIC":   func() any { return new(sql.NullFloat64) },
 	DEFAULT:     func() any { return new(sql.NullString) },
 }
 
@@ -19,6 +23,7 @@ var TypeConverters = map[string]TypeConverter{
 	"INTEGER":   func(i any) any { return i.(*sql.NullInt32).Int32 },
 	"INT4":      func(i any) any { return i.(*sql.NullInt64).Int64 },
 	"TIMESTAMP": func(i any) any { return i.(*sql.NullTime).Time },
+	"NUMERIC":   func(i any) any { return i.(*sql.NullFloat64).Float64 },
 	DEFAULT:     func(i any) any { return i.(*sql.NullString).String },
 }
 
@@ -43,9 +48,20 @@ var ReservedWords = map[string]struct{}{
 }
 
 func GetTypeAndConverter(t string) (any, TypeConverter) {
+	t = normalize(t)
 	if f, ok := Types[t]; ok {
 		return f(), TypeConverters[t]
 	}
 
 	return Types[DEFAULT](), TypeConverters[DEFAULT]
+}
+
+// normalize converts various type to standard type
+// e.g. sqlite has NVARCHAR(70), NUMERIC(10,2) will be NVARCHAR and NEMERIC
+func normalize(t string) string {
+	i := strings.Index(t, "(")
+	if i != -1 {
+		return t[:i]
+	}
+	return t
 }

@@ -33,6 +33,50 @@ type PostData struct {
 	objects []map[string]any
 }
 
+// UnmarshalJSON implements json.Unmarshaler
+func (pd *PostData) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 {
+		return fmt.Errorf("no bytes to unmarshal")
+	}
+	// guess based on the first character
+	switch b[0] {
+	case '{':
+		return pd.unmarshalSingle(b)
+	case '[':
+		return pd.unmarshalMany(b)
+	}
+	// This shouldn't really happen as the standard library seems to strip
+	// whitespace from the bytes being passed in, but just in case let's guess at
+	// multiple tags and fall back to a single one if that doesn't work.
+	err := pd.unmarshalMany(b)
+	if err != nil {
+		return pd.unmarshalSingle(b)
+	}
+	return nil
+}
+
+func (pd *PostData) unmarshalSingle(b []byte) error {
+	var data map[string]any
+	err := json.Unmarshal(b, &data)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal single data, %v", err)
+	}
+
+	pd.objects = []map[string]any{data}
+	return nil
+}
+
+func (pd *PostData) unmarshalMany(b []byte) error {
+	var data []map[string]any
+	err := json.Unmarshal(b, &data)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal many data, %v", err)
+	}
+
+	pd.objects = data
+	return nil
+}
+
 // valuesQuery convert post data to values query for insertion
 func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 	objects := pd.objects
@@ -92,50 +136,6 @@ func (pd *PostData) SetQuery(index int) (*SetQuery, error) {
 		sql,
 		args,
 	}, nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler
-func (pd *PostData) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 {
-		return fmt.Errorf("no bytes to unmarshal")
-	}
-	// guess based on the first character
-	switch b[0] {
-	case '{':
-		return pd.unmarshalSingle(b)
-	case '[':
-		return pd.unmarshalMany(b)
-	}
-	// This shouldn't really happen as the standard library seems to strip
-	// whitespace from the bytes being passed in, but just in case let's guess at
-	// multiple tags and fall back to a single one if that doesn't work.
-	err := pd.unmarshalMany(b)
-	if err != nil {
-		return pd.unmarshalSingle(b)
-	}
-	return nil
-}
-
-func (pd *PostData) unmarshalSingle(b []byte) error {
-	var data map[string]any
-	err := json.Unmarshal(b, &data)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal single data, %v", err)
-	}
-
-	pd.objects = []map[string]any{data}
-	return nil
-}
-
-func (pd *PostData) unmarshalMany(b []byte) error {
-	var data []map[string]any
-	err := json.Unmarshal(b, &data)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal many data, %v", err)
-	}
-
-	pd.objects = data
-	return nil
 }
 
 func identKeys(m map[string]any, keys []string) bool {

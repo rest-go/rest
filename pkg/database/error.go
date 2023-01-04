@@ -65,6 +65,13 @@ func pgErrCodeToHTTPCode(code string) int {
 // reference:
 //   https://www.sqlite.org/rescode.html
 func sqliteErrCodeToHTTPCode(code int) int {
+	switch code {
+	case 1299:
+		return http.StatusBadRequest
+	case 1555:
+		return http.StatusConflict
+	}
+
 	return http.StatusInternalServerError
 }
 

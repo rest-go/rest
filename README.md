@@ -87,7 +87,10 @@ func main(){
 - [x] count
 - [x] post many
 - [x] debug output sql & args
-- [ ] common types(int, char, timestamp, decimal)
+- [ ] common types(int, bool, char, timestamp, decimal)
+    - [ ] sqlite
+    - [ ] PG
+    - [ ] MySQL
 - [ ] test
 - [ ] log level
 - [ ] security sql
