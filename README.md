@@ -40,7 +40,7 @@ rest -db.url "sqlite://chinook.db"
 docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
 ```
 
-## Use RESTFul API
+## Use API
 
 ``` bash
 # Create an artist
@@ -66,7 +66,7 @@ curl -XPOST "localhost:3000/people" -d '{"id":1, "json_data": {"blood_type":"A-"
 curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>phones"
 ```
 
-# Using Rest as a Go Library
+# Use rest as a Go library
 
 ``` go
 package main
@@ -87,16 +87,14 @@ func main(){
 - [x] count
 - [x] post many
 - [x] debug output sql & args
-- [ ] common types(int, bool, char, timestamp, decimal)
-    - [ ] sqlite
-    - [ ] PG
-    - [ ] MySQL
+- [x] common types(int, bool, char, timestamp, decimal)
 - [ ] test
 - [ ] log level
 - [ ] security sql
 - [ ] auth(http & jwt)
 - [ ] comment/documentation
 - [x] json (postgres, operations, nested post/get)
+  - [ ] quote
 - [ ] json (mysql & sqlite)
 # Road map
 - [ ] Resource Embedding(one,many)

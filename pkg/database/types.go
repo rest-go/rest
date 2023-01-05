@@ -2,58 +2,102 @@ package database
 
 import (
 	"database/sql"
+	"log"
+	"regexp"
 	"strings"
 )
 
-const DEFAULT = "__default__"
-
 type TypeConverter func(any) any
 
-var Types = map[string]func() any{
-	"BOOL":      func() any { return new(sql.NullBool) },
-	"INTEGER":   func() any { return new(sql.NullInt32) },
-	"INT4":      func() any { return new(sql.NullInt64) },
-	"TIMESTAMP": func() any { return new(sql.NullTime) },
-	"NUMERIC":   func() any { return new(sql.NullFloat64) },
-	DEFAULT:     func() any { return new(sql.NullString) },
-}
+const (
+	StrType = "StringType"
+)
 
-var TypeConverters = map[string]TypeConverter{
-	"BOOL":      func(i any) any { return i.(*sql.NullBool).Bool },
-	"INTEGER":   func(i any) any { return i.(*sql.NullInt32).Int32 },
-	"INT4":      func(i any) any { return i.(*sql.NullInt64).Int64 },
-	"TIMESTAMP": func(i any) any { return i.(*sql.NullTime).Time },
-	"NUMERIC":   func(i any) any { return i.(*sql.NullFloat64).Float64 },
-	DEFAULT:     func(i any) any { return i.(*sql.NullString).String },
-}
+var (
+	strTypeRegexp = regexp.MustCompile("CHAR|TEXT|UUID|ENUM|BINARY||CLOB|BLOB|JSON|XML|DATETIME|TIMESTAMP")
 
-var Operators = map[string]string{
-	"eq":    " = ",
-	"ne":    " <> ",
-	"gt":    " > ",
-	"lt":    " < ",
-	"gte":   " >= ",
-	"lte":   " <= ",
-	"like":  " like ",
-	"ilike": " ilike ",
-	"in":    " in ",
-	"cs":    " @> ",
-	"cd":    " <@ ",
-}
+	// Various data types
+	// PG: https://www.postgresql.org/docs/current/datatype.html
+	// MY: https://dev.mysql.com/doc/refman/8.0/en/data-types.html
+	// SQLITE: https://www.sqlite.org/datatype3.html
+	Types = map[string]func() any{
+		"BIT":         func() any { return new(sql.NullInt16) },
+		"TINYINT":     func() any { return new(sql.NullInt16) },
+		"SMALLINT":    func() any { return new(sql.NullInt16) },
+		"SMALLSERIAL": func() any { return new(sql.NullInt16) },
+		"SERIAL":      func() any { return new(sql.NullInt32) },
+		"INT":         func() any { return new(sql.NullInt32) },
+		"INTEGER":     func() any { return new(sql.NullInt32) },
+		"BIGINT":      func() any { return new(sql.NullInt64) },
+		"BIGSERIAL":   func() any { return new(sql.NullInt64) },
 
-var ReservedWords = map[string]struct{}{
-	"select": {},
-	"order":  {},
-	"count":  {},
-}
+		"DECIMAL":          func() any { return new(sql.NullFloat64) },
+		"NUMERIC":          func() any { return new(sql.NullFloat64) },
+		"FLOAT":            func() any { return new(sql.NullFloat64) },
+		"REAL":             func() any { return new(sql.NullFloat64) },
+		"DOUBLE PRECISION": func() any { return new(sql.NullFloat64) },
 
-func GetTypeAndConverter(t string) (any, TypeConverter) {
+		"BOOL":    func() any { return new(sql.NullBool) },
+		"BOOLEAN": func() any { return new(sql.NullBool) },
+
+		StrType: func() any { return new(sql.NullString) },
+	}
+
+	TypeConverters = map[string]TypeConverter{
+		"BIT":         func(i any) any { return i.(*sql.NullInt16).Int16 },
+		"TINYINT":     func(i any) any { return i.(*sql.NullInt16).Int16 },
+		"SMALLINT":    func(i any) any { return i.(*sql.NullInt16).Int16 },
+		"SMALLSERIAL": func(i any) any { return i.(*sql.NullInt16).Int16 },
+		"SERIAL":      func(i any) any { return i.(*sql.NullInt32).Int32 },
+		"INT":         func(i any) any { return i.(*sql.NullInt32).Int32 },
+		"INTEGER":     func(i any) any { return i.(*sql.NullInt32).Int32 },
+		"BIGINT":      func(i any) any { return i.(*sql.NullInt64).Int64 },
+		"BIGSERIAL":   func(i any) any { return i.(*sql.NullInt64).Int64 },
+
+		"DECIMAL":          func(i any) any { return i.(*sql.NullFloat64).Float64 },
+		"NUMERIC":          func(i any) any { return i.(*sql.NullFloat64).Float64 },
+		"FLOAT":            func(i any) any { return i.(*sql.NullFloat64).Float64 },
+		"REAL":             func(i any) any { return i.(*sql.NullFloat64).Float64 },
+		"DOUBLE PRECISION": func(i any) any { return i.(*sql.NullFloat64).Float64 },
+
+		"BOOL":    func(i any) any { return i.(*sql.NullBool).Bool },
+		"BOOLEAN": func(i any) any { return i.(*sql.NullBool).Bool },
+
+		StrType: func(i any) any { return i.(*sql.NullString).String },
+	}
+
+	Operators = map[string]string{
+		"eq":    " = ",
+		"ne":    " <> ",
+		"gt":    " > ",
+		"lt":    " < ",
+		"gte":   " >= ",
+		"lte":   " <= ",
+		"like":  " like ",
+		"ilike": " ilike ",
+		"in":    " in ",
+		"cs":    " @> ",
+		"cd":    " <@ ",
+	}
+
+	ReservedWords = map[string]struct{}{
+		"select": {},
+		"order":  {},
+		"count":  {},
+	}
+)
+
+func getTypeAndConverter(t string) (any, TypeConverter) {
 	t = normalize(t)
 	if f, ok := Types[t]; ok {
 		return f(), TypeConverters[t]
 	}
 
-	return Types[DEFAULT](), TypeConverters[DEFAULT]
+	// default to use string type
+	if !strTypeRegexp.Match([]byte(t)) {
+		log.Print("unrecognized type: ", t)
+	}
+	return Types[StrType](), TypeConverters[StrType]
 }
 
 // normalize converts various type to standard type
@@ -61,7 +105,8 @@ func GetTypeAndConverter(t string) (any, TypeConverter) {
 func normalize(t string) string {
 	i := strings.Index(t, "(")
 	if i != -1 {
-		return t[:i]
+		t = t[:i]
 	}
-	return t
+
+	return strings.ToUpper(t)
 }

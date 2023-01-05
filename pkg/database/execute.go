@@ -47,7 +47,7 @@ func FetchData(ctx context.Context, db *sql.DB, sql string, args ...any) ([]any,
 		scanArgs := make([]any, count)
 		converters := make([]TypeConverter, count)
 		for i, v := range columnTypes {
-			t, converter := GetTypeAndConverter(v.DatabaseTypeName())
+			t, converter := getTypeAndConverter(v.DatabaseTypeName())
 			scanArgs[i] = t
 			converters[i] = converter
 		}

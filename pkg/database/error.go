@@ -61,21 +61,24 @@ func pgErrCodeToHTTPCode(code string) int {
 	return http.StatusInternalServerError
 }
 
-// sqliteErrCodeToHTTPCode converts PG Error to HTTP code
+// sqliteErrCodeToHTTPCode converts SQLite Error to HTTP code
 // reference:
 //   https://www.sqlite.org/rescode.html
 func sqliteErrCodeToHTTPCode(code int) int {
 	switch code {
 	case 1299:
+		// SQLITE_CONSTRAINT_NOTNULL
 		return http.StatusBadRequest
-	case 1555:
+	case 1555, 2067:
+		// SQLITE_CONSTRAINT_PRIMARYKEY
+		// SQLITE_CONSTRAINT_UNIQUE
 		return http.StatusConflict
 	}
 
 	return http.StatusInternalServerError
 }
 
-// myErrCodeToHTTPCode converts PG Error to HTTP code
+// myErrCodeToHTTPCode converts MySQL Error to HTTP code
 // reference:
 //   https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html
 func myErrCodeToHTTPCode(code int) int {
