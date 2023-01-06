@@ -22,7 +22,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
 
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -35,7 +35,11 @@ jobs:
       - name: Vet
         run: |
           go vet ./...
+
       - name: Unit tests
         run: |
-          go test ./... -race -v -coverprofile coverage.out
-          go tool cover -func coverage.out
+          go test ./... -race -v -coverprofile coverage.txt -covermode=atomic
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos

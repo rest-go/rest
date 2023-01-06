@@ -2,6 +2,7 @@
 Logo
 
 ![ci](https://github.com/shellfly/rest-go/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/github/shellfly/rest-go/branch/main/graph/badge.svg?token=DT5Q3DYNXP)](https://codecov.io/github/shellfly/rest-go)
 
 Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite are supported for now.
 
