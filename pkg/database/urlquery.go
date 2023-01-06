@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-type Query url.Values
+type URLQuery url.Values
 
 // SelectQuery return sql projection string
-func (q Query) SelectQuery() string {
+func (q URLQuery) SelectQuery() string {
 	selects := q["select"]
 	if len(selects) == 0 {
 		return "*"
@@ -31,7 +31,7 @@ func (q Query) SelectQuery() string {
 }
 
 // OrderQuery returns sql order query string
-func (q Query) OrderQuery() string {
+func (q URLQuery) OrderQuery() string {
 	orders := q["order"]
 	if len(orders) == 0 {
 		return ""
@@ -40,13 +40,13 @@ func (q Query) OrderQuery() string {
 }
 
 // WhereQuery returns sql and args for where clause
-func (q Query) WhereQuery(index int) (int, string, []any) {
+func (q URLQuery) WhereQuery(index int) (newIndex int, query string, args []any) {
 	if len(q) == 0 {
 		return index, "", nil
 	}
 
 	var queryBuilder strings.Builder
-	args := make([]any, 0, len(q))
+	args = make([]any, 0, len(q))
 	first := true
 	for k, v := range q {
 		if _, ok := ReservedWords[k]; ok {
@@ -89,9 +89,9 @@ func (q Query) WhereQuery(index int) (int, string, []any) {
 	return index, queryBuilder.String(), args
 }
 
-func (q Query) Page() (int, int) {
-	page := 1
-	pageSize := 100
+func (q URLQuery) Page() (page, pageSize int) {
+	page = 1
+	pageSize = 100
 	if p, ok := q["page"]; ok {
 		page, _ = strconv.Atoi(p[0])
 	}
@@ -101,17 +101,17 @@ func (q Query) Page() (int, int) {
 	return page, pageSize
 }
 
-func (q Query) IsDebug() bool {
+func (q URLQuery) IsDebug() bool {
 	_, ok := q["debug"]
 	return ok
 }
 
-func (q Query) IsCount() bool {
+func (q URLQuery) IsCount() bool {
 	_, ok := q["count"]
 	return ok
 }
 
-func (q Query) IsSingular() bool {
+func (q URLQuery) IsSingular() bool {
 	_, ok := q["singular"]
 	return ok
 }

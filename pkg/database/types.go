@@ -94,7 +94,7 @@ func getTypeAndConverter(t string) (any, TypeConverter) {
 	}
 
 	// default to use string type
-	if !strTypeRegexp.Match([]byte(t)) {
+	if !strTypeRegexp.MatchString(t) {
 		log.Print("unrecognized type: ", t)
 	}
 	return Types[StrType](), TypeConverters[StrType]

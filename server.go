@@ -32,10 +32,11 @@ func NewServer(url string, limitedTables ...string) *Server {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	defaultIdleConns := 50
+	defaultOpenConns := 50
 	db.SetConnMaxLifetime(0)
-	db.SetMaxIdleConns(50)
-	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(defaultIdleConns)
+	db.SetMaxOpenConns(defaultOpenConns)
 
 	var tables map[string]struct{}
 	if len(limitedTables) > 0 {
@@ -51,15 +52,15 @@ func NewServer(url string, limitedTables ...string) *Server {
 	}
 }
 
-func (s *Server) debug(sql string, args ...any) *Response {
+func (s *Server) debug(query string, args ...any) *Response {
 	return &Response{
 		Code: http.StatusOK,
 		Msg:  "success",
 		Data: struct {
-			Sql  string `json:"sql"`
-			Args []any  `json:"args"`
+			Query string `json:"query"`
+			Args  []any  `json:"args"`
 		}{
-			sql, args,
+			query, args,
 		},
 	}
 }
@@ -103,16 +104,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var res *Response
-	query := database.Query(r.URL.Query())
+	urlQuery := database.URLQuery(r.URL.Query())
 	switch r.Method {
 	case "POST":
-		res = s.create(r, table, query)
+		res = s.create(r, table, urlQuery)
 	case "DELETE":
-		res = s.delete(r, table, query)
+		res = s.delete(r, table, urlQuery)
 	case "PUT", "PATCH":
-		res = s.update(r, table, query)
+		res = s.update(r, table, urlQuery)
 	case "GET":
-		res = s.get(r, table, query)
+		res = s.get(r, table, urlQuery)
 	default:
 		res = &Response{
 			Code: http.StatusBadRequest,
@@ -122,7 +123,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.json(w, res)
 }
 
-func (s *Server) create(r *http.Request, tableName string, query database.Query) *Response {
+func (s *Server) create(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
 	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -139,13 +140,17 @@ func (s *Server) create(r *http.Request, tableName string, query database.Query)
 		}
 	}
 
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", tableName, strings.Join(valuesQuery.Columns, ","), strings.Join(valuesQuery.Vals, ","))
+	query := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
+		tableName,
+		strings.Join(valuesQuery.Columns, ","),
+		strings.Join(valuesQuery.Vals, ","))
 	args := valuesQuery.Args
-	if query.IsDebug() {
-		return s.debug(sql, args...)
+	if urlQuery.IsDebug() {
+		return s.debug(query, args...)
 	}
 
-	rows, dbErr := database.ExecQuery(r.Context(), s.db, sql, args...)
+	rows, dbErr := database.ExecQuery(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -165,22 +170,22 @@ func (s *Server) create(r *http.Request, tableName string, query database.Query)
 	}
 }
 
-func (s *Server) delete(r *http.Request, tableName string, query database.Query) *Response {
-	var sqlBuilder strings.Builder
-	sqlBuilder.WriteString("DELETE FROM ")
-	sqlBuilder.WriteString(tableName)
-	_, whereQuery, args := query.WhereQuery(1)
+func (s *Server) delete(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
+	var queryBuilder strings.Builder
+	queryBuilder.WriteString("DELETE FROM ")
+	queryBuilder.WriteString(tableName)
+	_, whereQuery, args := urlQuery.WhereQuery(1)
 	if whereQuery != "" {
-		sqlBuilder.WriteString(" WHERE ")
-		sqlBuilder.WriteString(whereQuery)
+		queryBuilder.WriteString(" WHERE ")
+		queryBuilder.WriteString(whereQuery)
 	}
 
-	sql := sqlBuilder.String()
-	if query.IsDebug() {
-		return s.debug(sql, args...)
+	query := queryBuilder.String()
+	if urlQuery.IsDebug() {
+		return s.debug(query, args...)
 	}
 
-	rows, dbErr := database.ExecQuery(r.Context(), s.db, sql, args...)
+	rows, dbErr := database.ExecQuery(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -194,7 +199,7 @@ func (s *Server) delete(r *http.Request, tableName string, query database.Query)
 	}
 }
 
-func (s *Server) update(r *http.Request, tableName string, query database.Query) *Response {
+func (s *Server) update(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
 	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -211,23 +216,23 @@ func (s *Server) update(r *http.Request, tableName string, query database.Query)
 		}
 	}
 
-	var sqlBuilder strings.Builder
-	sqlBuilder.WriteString(fmt.Sprintf("UPDATE %s SET %s", tableName, setQuery.Sql))
+	var queryBuilder strings.Builder
+	queryBuilder.WriteString(fmt.Sprintf("UPDATE %s SET %s", tableName, setQuery.Query))
 
 	args := setQuery.Args
-	_, whereQuery, args2 := query.WhereQuery(setQuery.Index)
+	_, whereQuery, args2 := urlQuery.WhereQuery(setQuery.Index)
 	if whereQuery != "" {
-		sqlBuilder.WriteString(" WHERE ")
-		sqlBuilder.WriteString(whereQuery)
+		queryBuilder.WriteString(" WHERE ")
+		queryBuilder.WriteString(whereQuery)
 		args = append(args, args2...)
 	}
 
-	sql := sqlBuilder.String()
-	if query.IsDebug() {
-		return s.debug(sql, args...)
+	query := queryBuilder.String()
+	if urlQuery.IsDebug() {
+		return s.debug(query, args...)
 	}
 
-	rows, dbErr := database.ExecQuery(r.Context(), s.db, sql, args...)
+	rows, dbErr := database.ExecQuery(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -240,42 +245,42 @@ func (s *Server) update(r *http.Request, tableName string, query database.Query)
 	}
 }
 
-func (s *Server) get(r *http.Request, tableName string, query database.Query) *Response {
-	if query.IsCount() {
+func (s *Server) get(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
+	if urlQuery.IsCount() {
 		return s.count(r, tableName)
 	}
 
-	var sqlBuilder strings.Builder
-	selects := query.SelectQuery()
-	sqlBuilder.WriteString(fmt.Sprintf("SELECT %s FROM %s", selects, tableName))
-	_, whereQuery, args := query.WhereQuery(1)
+	var queryBuilder strings.Builder
+	selects := urlQuery.SelectQuery()
+	queryBuilder.WriteString(fmt.Sprintf("SELECT %s FROM %s", selects, tableName))
+	_, whereQuery, args := urlQuery.WhereQuery(1)
 	if whereQuery != "" {
-		sqlBuilder.WriteString(" WHERE ")
-		sqlBuilder.WriteString(whereQuery)
+		queryBuilder.WriteString(" WHERE ")
+		queryBuilder.WriteString(whereQuery)
 	}
 
 	// order
-	order := query.OrderQuery()
+	order := urlQuery.OrderQuery()
 	if len(order) > 0 {
-		sqlBuilder.WriteString(" ORDER BY ")
-		sqlBuilder.WriteString(order)
+		queryBuilder.WriteString(" ORDER BY ")
+		queryBuilder.WriteString(order)
 	}
 
 	// page operation
-	page, pageSize := query.Page()
-	sqlBuilder.WriteString(" LIMIT ")
-	sqlBuilder.WriteString(fmt.Sprintf("%d", pageSize))
+	page, pageSize := urlQuery.Page()
+	queryBuilder.WriteString(" LIMIT ")
+	queryBuilder.WriteString(fmt.Sprintf("%d", pageSize))
 	if page != 1 {
-		sqlBuilder.WriteString(" OFFSET ")
-		sqlBuilder.WriteString(fmt.Sprintf("%d", (page-1)*pageSize))
+		queryBuilder.WriteString(" OFFSET ")
+		queryBuilder.WriteString(fmt.Sprintf("%d", (page-1)*pageSize))
 	}
 
-	sql := sqlBuilder.String()
-	if query.IsDebug() {
-		return s.debug(sql, args...)
+	query := queryBuilder.String()
+	if urlQuery.IsDebug() {
+		return s.debug(query, args...)
 	}
 
-	objects, dbErr := database.FetchData(r.Context(), s.db, sql, args...)
+	objects, dbErr := database.FetchData(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -283,7 +288,7 @@ func (s *Server) get(r *http.Request, tableName string, query database.Query) *R
 		}
 	}
 	var data any = objects
-	if query.IsSingular() {
+	if urlQuery.IsSingular() {
 		if len(objects) != 1 {
 			return &Response{
 				Code: http.StatusBadRequest,
@@ -300,8 +305,8 @@ func (s *Server) get(r *http.Request, tableName string, query database.Query) *R
 }
 
 func (s *Server) count(r *http.Request, tableName string) *Response {
-	sql := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
-	rows, dbErr := database.FetchData(r.Context(), s.db, sql)
+	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
+	rows, dbErr := database.FetchData(r.Context(), s.db, query)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -314,5 +319,4 @@ func (s *Server) count(r *http.Request, tableName string) *Response {
 		Msg:  "success",
 		Data: rows[0],
 	}
-
 }

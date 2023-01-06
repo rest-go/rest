@@ -7,7 +7,7 @@ import (
 )
 
 type DBConfig struct {
-	Url    string
+	URL    string
 	Tables []string
 }
 type Config struct {

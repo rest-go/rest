@@ -11,6 +11,22 @@ import (
 	"modernc.org/sqlite"
 )
 
+const (
+	// PG errors
+	// https://www.postgresql.org/docs/current/errcodes-appendix.html
+	PGIntegrityConstraintViolation = "23"
+	PGSyntaxError                  = "42"
+
+	// MySQL errors
+	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html
+
+	// SQLite errors
+	// https://www.sqlite.org/rescode.html
+	SQLiteConstraintNotNULL    = 1299
+	SQLiteConstraintPrimaryKey = 1555
+	SQLiteConstraintUnique     = 2067
+)
+
 // Error converts database error to http code
 type Error struct {
 	Code int
@@ -47,31 +63,22 @@ func NewError(hint string, err error) *Error {
 }
 
 // pgErrCodeToHTTPCode converts PG Error to HTTP code
-// reference:
-//   https://www.postgresql.org/docs/current/errcodes-appendix.html
 func pgErrCodeToHTTPCode(code string) int {
-	if strings.HasPrefix(code, "23") {
-		// Integrity Constraint Violation
+	if strings.HasPrefix(code, PGIntegrityConstraintViolation) {
 		return http.StatusBadRequest
 	}
-	if strings.HasPrefix(code, "42") {
-		// Syntax Error or Access Rule Violation
+	if strings.HasPrefix(code, PGSyntaxError) {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
 }
 
 // sqliteErrCodeToHTTPCode converts SQLite Error to HTTP code
-// reference:
-//   https://www.sqlite.org/rescode.html
 func sqliteErrCodeToHTTPCode(code int) int {
 	switch code {
-	case 1299:
-		// SQLITE_CONSTRAINT_NOTNULL
+	case SQLiteConstraintNotNULL:
 		return http.StatusBadRequest
-	case 1555, 2067:
-		// SQLITE_CONSTRAINT_PRIMARYKEY
-		// SQLITE_CONSTRAINT_UNIQUE
+	case SQLiteConstraintPrimaryKey, SQLiteConstraintUnique:
 		return http.StatusConflict
 	}
 
@@ -79,8 +86,6 @@ func sqliteErrCodeToHTTPCode(code int) int {
 }
 
 // myErrCodeToHTTPCode converts MySQL Error to HTTP code
-// reference:
-//   https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html
 func myErrCodeToHTTPCode(code int) int {
 	return http.StatusInternalServerError
 }

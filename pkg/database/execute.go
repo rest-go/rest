@@ -7,13 +7,15 @@ import (
 	"time"
 )
 
+const DefaultTimeout = 2 * time.Minute
+
 // ExecQuery execute a sql query and return rows affected or an error
-func ExecQuery(ctx context.Context, db *sql.DB, sql string, args ...any) (int64, *Error) {
-	log.Printf("exec query, sql: %v, args: %v", sql, args)
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+func ExecQuery(ctx context.Context, db *sql.DB, query string, args ...any) (int64, *Error) {
+	log.Printf("exec query, query: %v, args: %v", query, args)
+	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
-	result, err := db.ExecContext(ctx, sql, args...)
+	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, NewError("failed to exec sql", err)
 	}
@@ -25,12 +27,12 @@ func ExecQuery(ctx context.Context, db *sql.DB, sql string, args ...any) (int64,
 }
 
 // FetchData execute a sql and return matched rows or an error
-func FetchData(ctx context.Context, db *sql.DB, sql string, args ...any) ([]any, *Error) {
-	log.Printf("fetch data, sql: %v, args: %v", sql, args)
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+func FetchData(ctx context.Context, db *sql.DB, query string, args ...any) ([]any, *Error) {
+	log.Printf("fetch data, query: %v, args: %v", query, args)
+	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
-	rows, err := db.QueryContext(ctx, sql, args...)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, NewError("failed to run query", err)
 	}
@@ -51,7 +53,7 @@ func FetchData(ctx context.Context, db *sql.DB, sql string, args ...any) ([]any,
 			scanArgs[i] = t
 			converters[i] = converter
 		}
-		err := rows.Scan(scanArgs...)
+		err = rows.Scan(scanArgs...)
 		if err != nil {
 			return nil, NewError("failed to scan data from database", err)
 		}

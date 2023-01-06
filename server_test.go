@@ -45,7 +45,6 @@ CREATE INDEX [IFK_InvoiceCustomerId] ON "invoices" ([CustomerId]);
 `
 
 func TestMain(m *testing.M) {
-
 	testServer = NewServer("sqlite://ci.db")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	if _, err := database.ExecQuery(ctx, testServer.db, setupSQL); err != nil {
@@ -139,7 +138,6 @@ func TestServer(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, 2, len(objects))
 		t.Log("get invoices: ", objects)
-
 	})
 
 	t.Run("Update", func(t *testing.T) {

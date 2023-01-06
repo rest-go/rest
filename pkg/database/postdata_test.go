@@ -72,5 +72,4 @@ func TestPostData(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Equal(t, []map[string]interface{}(nil), data.objects)
 	})
-
 }

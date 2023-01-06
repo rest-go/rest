@@ -25,7 +25,7 @@ func parseFlags() *Config {
 		cfg.Addr = *addr
 	}
 	if *url != "" {
-		cfg.DB.Url = *url
+		cfg.DB.URL = *url
 	}
 	return cfg
 }
@@ -33,7 +33,7 @@ func parseFlags() *Config {
 func main() {
 	cfg := parseFlags()
 
-	s := NewServer(cfg.DB.Url, cfg.DB.Tables...)
+	s := NewServer(cfg.DB.URL, cfg.DB.Tables...)
 	log.Print("listen on addr: ", cfg.Addr)
-	log.Fatal(http.ListenAndServe(cfg.Addr, s))
+	log.Fatal(http.ListenAndServe(cfg.Addr, s)) //nolint:gosec
 }

@@ -25,7 +25,7 @@ type ValuesQuery struct {
 // args=["a", "b"]
 type SetQuery struct {
 	Index int // index for next field, args number plus 1
-	Sql   string
+	Query string
 	Args  []any
 }
 
