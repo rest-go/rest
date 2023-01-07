@@ -4,7 +4,7 @@ Logo
 ![ci](https://github.com/shellfly/rest/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/shellfly/rest/branch/main/graph/badge.svg?token=4B8AXQ3HR0)](https://codecov.io/gh/shellfly/rest)
 
-Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite are supported for now.
+Rest serves a fully RESTful API from any (PostgreSQL/MySQL/SQLite) database.
 
 Visit https://rest-go.com for the full documentation, examples and guides.
 
@@ -93,15 +93,13 @@ func main() {
 
 ## Features
 - [x] CRUD
-- [x] Limit tables
 - [x] Page
-- [x] eq.,lt., gt., is., like.
-- [x] ?select=f1,f2
+- [x] common operators e.g. eq,lt, gt, is, like
+- [x] common types(int, bool, char, timestamp, decimal)
+- [x] select fileds
 - [x] order by
 - [x] count
-- [x] post many
 - [x] debug output sql & args
-- [x] common types(int, bool, char, timestamp, decimal)
 - [x] test
 - [ ] security sql
 - [ ] auth(http & jwt)
