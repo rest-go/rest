@@ -1,14 +1,8 @@
 ## Build
 FROM golang:1.19-bullseye AS build
 
-WORKDIR /rest-go
-
-COPY go.mod ./
-COPY go.sum ./
-RUN go mod download
-
-COPY *.go ./
-
+WORKDIR $GOPATH/src/github.com/shellfly/rest
+COPY . .
 RUN go build -o /rest
 
 ## Deploy
