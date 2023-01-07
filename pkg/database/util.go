@@ -35,3 +35,12 @@ func Open(url string) (*sql.DB, error) {
 	}
 	return db, err
 }
+
+func placeholder(driver string, index uint) string {
+	switch strings.ToLower(driver) {
+	case "mysql":
+		return "?"
+	default:
+		return fmt.Sprintf("$%d", index)
+	}
+}

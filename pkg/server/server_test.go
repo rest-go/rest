@@ -10,13 +10,27 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	res, err := request(http.MethodGet, "/", nil)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, res.Code, res.Msg)
+	t.Run("happy path", func(t *testing.T) {
+		res, err := request(http.MethodGet, "/", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
 
-	res, err = request(http.MethodGet, "/0invalid_table_name", nil)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusBadRequest, res.Code, res.Msg)
+		res, err = request(http.MethodGet, "/customers", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
+	})
+
+	t.Run("invalid table", func(t *testing.T) {
+		res, err := request(http.MethodGet, "/0invalid_table_name", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusBadRequest, res.Code, res.Msg)
+	})
+
+	t.Run("invalid method", func(t *testing.T) {
+		res, err := request(http.MethodHead, "/customers", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusMethodNotAllowed, res.Code, res.Msg)
+	})
 }
 
 // Test Create and Delete together so that we can delete the data that just
@@ -126,6 +140,16 @@ func TestServer_Read(t *testing.T) {
 		objects, ok := res.Data.([]any)
 		assert.True(t, ok)
 		assert.Equal(t, 2, len(objects))
+		t.Log("get invoices: ", objects)
+	})
+
+	t.Run("many with page", func(t *testing.T) {
+		res, err := request(http.MethodGet, "/invoices?page=2&page_size=1", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
+		objects, ok := res.Data.([]any)
+		assert.True(t, ok)
+		assert.Equal(t, 1, len(objects))
 		t.Log("get invoices: ", objects)
 	})
 

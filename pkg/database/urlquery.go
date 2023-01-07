@@ -9,11 +9,18 @@ import (
 	"strings"
 )
 
-type URLQuery url.Values
+type URLQuery struct {
+	driver string
+	values url.Values
+}
+
+func NewURLQuery(driver string, values url.Values) *URLQuery {
+	return &URLQuery{driver, values}
+}
 
 // SelectQuery return sql projection string
-func (q URLQuery) SelectQuery() string {
-	selects := q["select"]
+func (q *URLQuery) SelectQuery() string {
+	selects := q.values["select"]
 	if len(selects) == 0 {
 		return "*"
 	}
@@ -31,8 +38,8 @@ func (q URLQuery) SelectQuery() string {
 }
 
 // OrderQuery returns sql order query string
-func (q URLQuery) OrderQuery() string {
-	orders := q["order"]
+func (q *URLQuery) OrderQuery() string {
+	orders := q.values["order"]
 	if len(orders) == 0 {
 		return ""
 	}
@@ -40,15 +47,15 @@ func (q URLQuery) OrderQuery() string {
 }
 
 // WhereQuery returns sql and args for where clause
-func (q URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []any) {
-	if len(q) == 0 {
+func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []any) {
+	if len(q.values) == 0 {
 		return index, "", nil
 	}
 
 	var queryBuilder strings.Builder
-	args = make([]any, 0, len(q))
+	args = make([]any, 0, len(q.values))
 	first := true
-	for k, v := range q {
+	for k, v := range q.values {
 		if _, ok := ReservedWords[k]; ok {
 			continue
 		}
@@ -79,7 +86,7 @@ func (q URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []an
 			queryBuilder.WriteString(val)
 		} else {
 			queryBuilder.WriteString(operator)
-			queryBuilder.WriteString(fmt.Sprintf("$%d", index))
+			queryBuilder.WriteString(placeholder(q.driver, index))
 			args = append(args, val)
 			index++
 		}
@@ -89,30 +96,30 @@ func (q URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []an
 	return index, queryBuilder.String(), args
 }
 
-func (q URLQuery) Page() (page, pageSize int) {
+func (q *URLQuery) Page() (page, pageSize int) {
 	page = 1
 	pageSize = 100
-	if p, ok := q["page"]; ok {
+	if p, ok := q.values["page"]; ok {
 		page, _ = strconv.Atoi(p[0])
 	}
-	if p, ok := q["page_size"]; ok {
+	if p, ok := q.values["page_size"]; ok {
 		pageSize, _ = strconv.Atoi(p[0])
 	}
 	return page, pageSize
 }
 
-func (q URLQuery) IsDebug() bool {
-	_, ok := q["debug"]
+func (q *URLQuery) IsDebug() bool {
+	_, ok := q.values["debug"]
 	return ok
 }
 
-func (q URLQuery) IsCount() bool {
-	_, ok := q["count"]
+func (q *URLQuery) IsCount() bool {
+	_, ok := q.values["count"]
 	return ok
 }
 
-func (q URLQuery) IsSingular() bool {
-	_, ok := q["singular"]
+func (q *URLQuery) IsSingular() bool {
+	_, ok := q.values["singular"]
 	return ok
 }
 
@@ -145,3 +152,5 @@ func buildColumn(c string, as bool) (string, error) {
 
 	return columnName, nil
 }
+
+

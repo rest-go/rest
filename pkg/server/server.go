@@ -21,13 +21,27 @@ type Response struct {
 // Server is the representation of a restful server which handles CRUD requests
 type Server struct {
 	prefix string
+	driver string
 	db     *sql.DB
 }
 
 // NewServer returns a Server pointer
 func NewServer(url string) *Server {
 	log.Printf("connecting to database: %s", url)
-	db, err := database.Open(url)
+	parts := strings.SplitN(url, "://", 2)
+	if len(parts) != 2 {
+		log.Fatal(fmt.Errorf("invalid db url: %s", url))
+	}
+
+	driver, dsn := parts[0], parts[1]
+	if driver == "postgres" {
+		driver = "pgx"
+		dsn = url
+	}
+	db, err := sql.Open(driver, dsn)
+	if err == nil {
+		err = db.Ping()
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,7 +51,7 @@ func NewServer(url string) *Server {
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
 
-	return &Server{"", db}
+	return &Server{"", driver, db}
 }
 
 func (s *Server) WithPrefix(prefix string) *Server {
@@ -87,7 +101,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var res *Response
-	urlQuery := database.URLQuery(r.URL.Query())
+	urlQuery := database.NewURLQuery(s.driver, r.URL.Query())
 	switch r.Method {
 	case "POST":
 		res = s.create(r, table, urlQuery)
@@ -106,7 +120,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.json(w, res)
 }
 
-func (s *Server) create(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
+func (s *Server) create(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
 	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -115,6 +129,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery database.URL
 			Msg:  fmt.Sprintf("failed to parse post json data, %v", err),
 		}
 	}
+	data.WithDriver(s.driver)
 	valuesQuery, err := data.ValuesQuery()
 	if err != nil {
 		return &Response{
@@ -153,7 +168,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery database.URL
 	}
 }
 
-func (s *Server) delete(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
+func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString("DELETE FROM ")
 	queryBuilder.WriteString(tableName)
@@ -182,7 +197,7 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery database.URL
 	}
 }
 
-func (s *Server) update(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
+func (s *Server) update(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
 	var data database.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -191,6 +206,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery database.URL
 			Msg:  fmt.Sprintf("failed to parse update json data, %v", err),
 		}
 	}
+	data.WithDriver(s.driver)
 	setQuery, err := data.SetQuery(1)
 	if err != nil {
 		return &Response{
@@ -228,7 +244,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery database.URL
 	}
 }
 
-func (s *Server) get(r *http.Request, tableName string, urlQuery database.URLQuery) *Response {
+func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
 	if urlQuery.IsCount() {
 		return s.count(r, tableName)
 	}

@@ -16,14 +16,13 @@ const (
 )
 
 var (
-	strTypeRegexp = regexp.MustCompile("CHAR|TEXT|UUID|ENUM|BINARY|CLOB|BLOB|JSON|XML|DATETIME|TIMESTAMP")
-
+	strTypeRegexp = regexp.MustCompile(`CHAR|TEXT|BIT|UUID|ENUM|BINARY|CLOB|BLOB|JSON|XML|DATETIME|TIMESTAMP`)
+	numericRegexp = regexp.MustCompile(`^(INT|FLOAT)\d+`)
 	// Various data types
 	// PG: https://www.postgresql.org/docs/current/datatype.html
 	// MY: https://dev.mysql.com/doc/refman/8.0/en/data-types.html
 	// SQLITE: https://www.sqlite.org/datatype3.html
 	Types = map[string]func() any{
-		"BIT":         func() any { return new(sql.NullInt16) },
 		"TINYINT":     func() any { return new(sql.NullInt16) },
 		"SMALLINT":    func() any { return new(sql.NullInt16) },
 		"SMALLSERIAL": func() any { return new(sql.NullInt16) },
@@ -33,6 +32,7 @@ var (
 		"BIGINT":      func() any { return new(sql.NullInt64) },
 		"BIGSERIAL":   func() any { return new(sql.NullInt64) },
 
+		"DEC":              func() any { return new(sql.NullFloat64) },
 		"DECIMAL":          func() any { return new(sql.NullFloat64) },
 		"NUMERIC":          func() any { return new(sql.NullFloat64) },
 		"FLOAT":            func() any { return new(sql.NullFloat64) },
@@ -48,7 +48,6 @@ var (
 	}
 
 	TypeConverters = map[string]TypeConverter{
-		"BIT":         func(i any) any { return i.(*sql.NullInt16).Int16 },
 		"TINYINT":     func(i any) any { return i.(*sql.NullInt16).Int16 },
 		"SMALLINT":    func(i any) any { return i.(*sql.NullInt16).Int16 },
 		"SMALLSERIAL": func(i any) any { return i.(*sql.NullInt16).Int16 },
@@ -58,6 +57,7 @@ var (
 		"BIGINT":      func(i any) any { return i.(*sql.NullInt64).Int64 },
 		"BIGSERIAL":   func(i any) any { return i.(*sql.NullInt64).Int64 },
 
+		"DEC":              func(i any) any { return i.(*sql.NullFloat64).Float64 },
 		"DECIMAL":          func(i any) any { return i.(*sql.NullFloat64).Float64 },
 		"NUMERIC":          func(i any) any { return i.(*sql.NullFloat64).Float64 },
 		"FLOAT":            func(i any) any { return i.(*sql.NullFloat64).Float64 },
@@ -120,6 +120,6 @@ func normalize(t string) string {
 	if i != -1 {
 		t = t[:i]
 	}
-
+	t = numericRegexp.ReplaceAllString(t, "${1}")
 	return strings.ToUpper(t)
 }

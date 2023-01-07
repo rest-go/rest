@@ -10,24 +10,24 @@ import (
 
 func TestURLQuerySelectQuery(t *testing.T) {
 	v := url.Values{}
-	q := URLQuery(v)
+	q := NewURLQuery("", v)
 	query := q.SelectQuery()
 	assert.Equal(t, "*", query)
 
 	v = url.Values{"select": []string{"a,b,object->>field"}}
-	q = URLQuery(v)
+	q = NewURLQuery("", v)
 	query = q.SelectQuery()
 	assert.Equal(t, "a,b,object->>'field' AS field", query)
 }
 
 func TestURLQueryOrderQuery(t *testing.T) {
 	v := url.Values{}
-	q := URLQuery(v)
+	q := NewURLQuery("", v)
 	query := q.OrderQuery()
 	assert.Equal(t, "", query)
 
 	v = url.Values{"order": []string{"a.desc,b.asc"}}
-	q = URLQuery(v)
+	q = NewURLQuery("", v)
 	query = q.OrderQuery()
 	assert.Equal(t, "a desc,b asc", query)
 }
@@ -36,7 +36,7 @@ func TestURLQueryOrderQuery(t *testing.T) {
 func TestURLQueryWhereQuery(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		v := url.Values{}
-		q := URLQuery(v)
+		q := NewURLQuery("", v)
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(1), index)
 		assert.Equal(t, "", query)
@@ -49,7 +49,7 @@ func TestURLQueryWhereQuery(t *testing.T) {
 				continue
 			}
 			v := url.Values{"a": []string{fmt.Sprintf("%s.1", op)}}
-			q := URLQuery(v)
+			q := NewURLQuery("", v)
 			index, query, args := q.WhereQuery(1)
 			assert.Equal(t, uint(2), index)
 			assert.Equal(t, fmt.Sprintf("a%s$1", operator), query)
@@ -57,7 +57,7 @@ func TestURLQueryWhereQuery(t *testing.T) {
 		}
 
 		v := url.Values{"a": []string{"in.(1,2)"}}
-		q := URLQuery(v)
+		q := NewURLQuery("", v)
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(1), index)
 		assert.Equal(t, "a IN (1,2)", query)
@@ -66,7 +66,7 @@ func TestURLQueryWhereQuery(t *testing.T) {
 
 	t.Run("AND", func(t *testing.T) {
 		v := url.Values{"a": []string{"eq.1"}, "b": []string{"eq.2"}}
-		q := URLQuery(v)
+		q := NewURLQuery("", v)
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(3), index)
 		assert.Contains(t, query, " AND ")
@@ -75,7 +75,7 @@ func TestURLQueryWhereQuery(t *testing.T) {
 
 	t.Run("json", func(t *testing.T) {
 		v := url.Values{"object->>field": []string{"eq.1"}}
-		q := URLQuery(v)
+		q := NewURLQuery("", v)
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(2), index)
 		assert.Equal(t, "object->>'field' = $1", query)
@@ -85,13 +85,13 @@ func TestURLQueryWhereQuery(t *testing.T) {
 
 func TestURLQueryPage(t *testing.T) {
 	v := url.Values{}
-	q := URLQuery(v)
+	q := NewURLQuery("", v)
 	page, pageSize := q.Page()
 	assert.Equal(t, 1, page)
 	assert.Equal(t, 100, pageSize)
 
 	v = url.Values{"page": []string{"2"}, "page_size": []string{"20"}}
-	q = URLQuery(v)
+	q = NewURLQuery("", v)
 	page, pageSize = q.Page()
 	assert.Equal(t, 2, page)
 	assert.Equal(t, 20, pageSize)
@@ -99,30 +99,30 @@ func TestURLQueryPage(t *testing.T) {
 
 func TestURLQueryIsDebug(t *testing.T) {
 	v := url.Values{}
-	q := URLQuery(v)
+	q := NewURLQuery("", v)
 	assert.False(t, q.IsDebug())
 
 	v = url.Values{"debug": []string{"1"}}
-	q = URLQuery(v)
+	q = NewURLQuery("", v)
 	assert.True(t, q.IsDebug())
 }
 
 func TestURLQueryIsCount(t *testing.T) {
 	v := url.Values{}
-	q := URLQuery(v)
+	q := NewURLQuery("", v)
 	assert.False(t, q.IsCount())
 
 	v = url.Values{"count": []string{"1"}}
-	q = URLQuery(v)
+	q = NewURLQuery("", v)
 	assert.True(t, q.IsCount())
 }
 
 func TestURLQueryIsSingular(t *testing.T) {
 	v := url.Values{}
-	q := URLQuery(v)
+	q := NewURLQuery("", v)
 	assert.False(t, q.IsSingular())
 
 	v = url.Values{"singular": []string{"1"}}
-	q = URLQuery(v)
+	q = NewURLQuery("", v)
 	assert.True(t, q.IsSingular())
 }

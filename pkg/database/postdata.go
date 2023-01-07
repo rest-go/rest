@@ -13,7 +13,7 @@ import (
 // vals=["$1,$2", "$3,$4"]
 // args=[v1,v2,v3,v4]
 type ValuesQuery struct {
-	Index   int // index for next field, args number plus 1
+	Index   uint // index for next field, args number plus 1
 	Columns []string
 	Vals    []string
 	Args    []any
@@ -30,7 +30,12 @@ type SetQuery struct {
 }
 
 type PostData struct {
+	driver  string
 	objects []map[string]any
+}
+
+func (pd *PostData) WithDriver(driver string) {
+	pd.driver = driver
 }
 
 // UnmarshalJSON implements json.Unmarshaler
@@ -93,7 +98,7 @@ func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 	// build vals and args
 	vals := make([]string, 0, len(objects))
 	args := make([]any, 0, cap(columns)*cap(vals))
-	index := 1
+	var index uint = 1
 	for i, object := range objects {
 		val := make([]string, 0, len(object))
 		if i > 0 && !identKeys(object, columns) {
@@ -102,7 +107,7 @@ func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 		}
 		// consistent column order with first object
 		for _, c := range columns {
-			val = append(val, fmt.Sprintf("$%d", index))
+			val = append(val, placeholder(pd.driver, index))
 			args = append(args, object[c])
 			index++
 		}
@@ -130,7 +135,7 @@ func (pd *PostData) SetQuery(index uint) (*SetQuery, error) {
 		}
 		queryBuilder.WriteString(k)
 		queryBuilder.WriteString(" = ")
-		queryBuilder.WriteString(fmt.Sprintf("$%d", index))
+		queryBuilder.WriteString(placeholder(pd.driver, index))
 		args = append(args, v)
 		index++
 		first = false

@@ -28,18 +28,10 @@ go install github.com/shellfly/rest
 rest -db.url "postgres://user:passwd@localhost:5432/db?search_path=api"
 
 # MySQL
-rest -db.url "mysql://user:passwd@localhost:3306/db"
+rest -db.url "mysql://user:passwd@tcp(localhost:3306)/db"
 
 # SQLite
 rest -db.url "sqlite://chinook.db"
-```
-
-
-### Docker image
-
-``` bash
-docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
-docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
 ```
 
 ## Use API
@@ -56,6 +48,13 @@ curl -XPUT "localhost:3000/artists?&artistid=eq.10000" -d '{"name": "Stephen Cho
 
 # Delete
 curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
+```
+
+### Docker image
+
+``` bash
+docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
+docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
 ```
 
 ### JSON
