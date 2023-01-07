@@ -24,7 +24,13 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+
     steps:
+      - name: Start PG & MySQL
+        run: |
+          sudo systemctl start postgresql.service
+          sudo systemctl start mysql.service
+
       - uses: actions/checkout@v3
 
       - name: Set up Go
