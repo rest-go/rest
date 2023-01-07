@@ -1,8 +1,8 @@
 # Rest
 Logo
 
-![ci](https://github.com/shellfly/rest-go/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/github/shellfly/rest-go/branch/main/graph/badge.svg?token=DT5Q3DYNXP)](https://codecov.io/github/shellfly/rest-go)
+![ci](https://github.com/shellfly/rest/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/github/shellfly/rest/branch/main/graph/badge.svg?token=DT5Q3DYNXP)](https://codecov.io/github/shellfly/rest)
 
 Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite are supported for now.
 
@@ -54,7 +54,7 @@ curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
 
 ``` bash
 docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
-docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
+docker run --name rest -d -p 127.0.0.1:3000:3000 -v $(pwd):/data shellfly/rest -db.url "sqlite:///data/chinook.db"
 ```
 
 ### JSON
@@ -104,10 +104,11 @@ func main() {
 - [ ] security sql
 - [ ] auth(http & jwt)
 - [ ] comment/documentation
+	- [ ] json
 - [x] json (postgres, operations, nested post/get)
-  - [ ] quote
-- [ ] json (mysql & sqlite)
-- [ ] test for different db (github action)
+  - [x] quote
+- [x] json (mysql & sqlite)
+- [x] test for different db (github action)
 # Road map
 - [ ] Resource Embedding(one,many)
 - [ ] Logical operators(or, and is already in code)

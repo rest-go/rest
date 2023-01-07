@@ -2,6 +2,11 @@
 FROM golang:1.19-bullseye AS build
 
 WORKDIR $GOPATH/src/github.com/shellfly/rest
+# cache based on the go.{mod,sum} files.
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+
 COPY . .
 RUN go build -o /rest
 
