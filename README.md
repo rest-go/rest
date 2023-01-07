@@ -2,7 +2,7 @@
 Logo
 
 ![ci](https://github.com/shellfly/rest/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/github/shellfly/rest/branch/main/graph/badge.svg?token=DT5Q3DYNXP)](https://codecov.io/github/shellfly/rest)
+[![codecov](https://codecov.io/gh/shellfly/rest/branch/main/graph/badge.svg?token=4B8AXQ3HR0)](https://codecov.io/gh/shellfly/rest)
 
 Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite are supported for now.
 
@@ -14,7 +14,7 @@ Visit https://rest-go.com for the full documentation, examples and guides.
 There are various ways of installing Rest.
 
 ### Precompiled binaries
-Precompiled binaries for released versions are available in the [release page](). Using the latest production release binary is the recommended way of installing Rest. See the Installing chapter in the documentation for all the details.
+Precompiled binaries for released versions are available in the [Releases page](https://github.com/shellfly/rest/releases). Using the latest production release binary is the recommended way of installing Rest. See the [INSTALLATION]() chapter in the documentation for all the details.
 
 ### Go install
 
@@ -22,7 +22,7 @@ Precompiled binaries for released versions are available in the [release page]()
 go install github.com/shellfly/rest
 ```
 
-### Run rest server
+## Run rest server
 ``` bash
 # PG
 rest -db.url "postgres://user:passwd@localhost:5432/db?search_path=api"
@@ -50,14 +50,14 @@ curl -XPUT "localhost:3000/artists?&artistid=eq.10000" -d '{"name": "Stephen Cho
 curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
 ```
 
-### Docker image
+## Docker image
 
 ``` bash
 docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
 docker run --name rest -d -p 127.0.0.1:3000:3000 -v $(pwd):/data shellfly/rest -db.url "sqlite:///data/chinook.db"
 ```
 
-### JSON
+## JSON
 
 ``` bash
 # POST json
@@ -67,7 +67,7 @@ curl -XPOST "localhost:3000/people" -d '{"id":1, "json_data": {"blood_type":"A-"
 curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>phones"
 ```
 
-# Use rest as a Go library
+## Use rest as a Go library
 It also works to embed rest server into an existing Go http server
 
 ``` go
@@ -89,7 +89,7 @@ func main() {
 }
 ```
 
-# Features
+## Features
 - [x] CRUD
 - [x] Limit tables
 - [x] Page
@@ -109,7 +109,7 @@ func main() {
   - [x] quote
 - [x] json (mysql & sqlite)
 - [x] test for different db (github action)
-# Road map
+## Road map
 - [ ] Resource Embedding(one,many)
 - [ ] Logical operators(or, and is already in code)
 - [ ] escape field name
