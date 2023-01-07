@@ -11,20 +11,20 @@ import (
 	"github.com/shellfly/rest/pkg/database"
 )
 
-// A Response serves JSON output for all restful apis
+// Response serves JSON output for all restful apis
 type Response struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
 	Data any    `json:"data,omitempty"`
 }
 
-// Server is the representation of a restful server handler which handles CRUD operations.
+// Server is the representation of a restful server which handles CRUD requests
 type Server struct {
-	db *sql.DB
+	prefix string
+	db     *sql.DB
 }
 
-// TODO: accept function options to config database
-// NewServer returns a Service pointer.
+// NewServer returns a Server pointer
 func NewServer(url string) *Server {
 	log.Printf("connecting to database: %s", url)
 	db, err := database.Open(url)
@@ -37,7 +37,12 @@ func NewServer(url string) *Server {
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
 
-	return &Server{db}
+	return &Server{"", db}
+}
+
+func (s *Server) WithPrefix(prefix string) *Server {
+	s.prefix = prefix
+	return s
 }
 
 func (s *Server) debug(query string, args ...any) *Response {
@@ -62,7 +67,8 @@ func (s *Server) json(w http.ResponseWriter, res *Response) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	table := strings.Trim(r.URL.Path, "/")
+	path := strings.TrimPrefix(r.URL.Path, s.prefix)
+	table := strings.Trim(path, "/")
 	if table == "" {
 		res := &Response{
 			Code: http.StatusOK,

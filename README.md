@@ -69,14 +69,25 @@ curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>
 ```
 
 # Use rest as a Go library
+It also works to embed rest server into an existing Go http server
 
 ``` go
 package main
 
-func main(){
-    
-}
+import (
+	"log"
+	"net/http"
 
+	"github.com/shellfly/rest/pkg/server"
+)
+
+func main() {
+	s := server.NewServer("sqlite://chinook.db")
+	http.Handle("/", s)
+	// or with prefix
+	// http.Handle("/admin", s.WithPrefix("/admin"))
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
 ```
 
 # Features
@@ -90,14 +101,14 @@ func main(){
 - [x] post many
 - [x] debug output sql & args
 - [x] common types(int, bool, char, timestamp, decimal)
-- [ ] test
-- [ ] log level
+- [x] test
 - [ ] security sql
 - [ ] auth(http & jwt)
 - [ ] comment/documentation
 - [x] json (postgres, operations, nested post/get)
   - [ ] quote
 - [ ] json (mysql & sqlite)
+- [ ] test for different db (github action)
 # Road map
 - [ ] Resource Embedding(one,many)
 - [ ] Logical operators(or, and is already in code)
