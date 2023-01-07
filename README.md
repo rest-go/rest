@@ -8,15 +8,14 @@ Rest serves a fully RESTful API from any database, PostgreSQL, MySQL and SQLite 
 
 Visit https://rest-go.com for the full documentation, examples and guides.
 
-# Guide
 ## Install
 
 There are various ways of installing Rest.
 
-### Precompiled binaries
+#### Precompiled binaries
 Precompiled binaries for released versions are available in the [Releases page](https://github.com/shellfly/rest/releases). Using the latest production release binary is the recommended way of installing Rest. See the [INSTALLATION]() chapter in the documentation for all the details.
 
-### Go install
+#### Go install
 
 ``` bash
 go install github.com/shellfly/rest
@@ -53,8 +52,11 @@ curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
 ## Docker image
 
 ``` bash
-docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
-docker run --name rest -d -p 127.0.0.1:3000:3000 -v $(pwd):/data shellfly/rest -db.url "sqlite:///data/chinook.db"
+# for mysql
+docker run -p 3000:3000 shellfly/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
+
+# for sqlite with mounted volume
+docker run -p 3000:3000 -v $(pwd):/data shellfly/rest -db.url "sqlite:///data/chinook.db"
 ```
 
 ## JSON
