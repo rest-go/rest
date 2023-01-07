@@ -20,13 +20,12 @@ type Response struct {
 
 // Server is the representation of a restful server handler which handles CRUD operations.
 type Server struct {
-	db     *sql.DB
-	tables map[string]struct{}
+	db *sql.DB
 }
 
 // TODO: accept function options to config database
 // NewServer returns a Service pointer.
-func NewServer(url string, limitedTables ...string) *Server {
+func NewServer(url string) *Server {
 	log.Printf("connecting to database: %s", url)
 	db, err := database.Open(url)
 	if err != nil {
@@ -38,18 +37,7 @@ func NewServer(url string, limitedTables ...string) *Server {
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
 
-	var tables map[string]struct{}
-	if len(limitedTables) > 0 {
-		tables = make(map[string]struct{}, len(limitedTables))
-		for _, t := range limitedTables {
-			tables[t] = struct{}{}
-		}
-	}
-
-	return &Server{
-		db:     db,
-		tables: tables,
-	}
+	return &Server{db}
 }
 
 func (s *Server) debug(query string, args ...any) *Response {
@@ -92,17 +80,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(s.tables) > 0 {
-		if _, ok := s.tables[table]; !ok {
-			res := &Response{
-				Code: http.StatusNotFound,
-				Msg:  fmt.Sprintf("table not supported: %s", table),
-			}
-			s.json(w, res)
-			return
-		}
-	}
-
 	var res *Response
 	urlQuery := database.URLQuery(r.URL.Query())
 	switch r.Method {
@@ -116,7 +93,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		res = s.get(r, table, urlQuery)
 	default:
 		res = &Response{
-			Code: http.StatusBadRequest,
+			Code: http.StatusMethodNotAllowed,
 			Msg:  fmt.Sprintf("method not supported: %s", r.Method),
 		}
 	}

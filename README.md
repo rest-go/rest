@@ -39,6 +39,7 @@ rest -db.url "sqlite://chinook.db"
 
 ``` bash
 docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
+docker run --name rest -d -p 127.0.0.1:3000:3000 shellfly/rest -db.url "mysql://user:passwd@host:port/db"
 ```
 
 ## Use API

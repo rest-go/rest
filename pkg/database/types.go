@@ -4,17 +4,19 @@ import (
 	"database/sql"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 type TypeConverter func(any) any
 
 const (
-	StrType = "StringType"
+	StrType    = "StringType"
+	GoldenType = "GoldenType"
 )
 
 var (
-	strTypeRegexp = regexp.MustCompile("CHAR|TEXT|UUID|ENUM|BINARY||CLOB|BLOB|JSON|XML|DATETIME|TIMESTAMP")
+	strTypeRegexp = regexp.MustCompile("CHAR|TEXT|UUID|ENUM|BINARY|CLOB|BLOB|JSON|XML|DATETIME|TIMESTAMP")
 
 	// Various data types
 	// PG: https://www.postgresql.org/docs/current/datatype.html
@@ -40,7 +42,8 @@ var (
 		"BOOL":    func() any { return new(sql.NullBool) },
 		"BOOLEAN": func() any { return new(sql.NullBool) },
 
-		StrType: func() any { return new(sql.NullString) },
+		StrType:    func() any { return new(sql.NullString) },
+		GoldenType: func() any { return new(sql.NullString) },
 	}
 
 	TypeConverters = map[string]TypeConverter{
@@ -64,6 +67,13 @@ var (
 		"BOOLEAN": func(i any) any { return i.(*sql.NullBool).Bool },
 
 		StrType: func(i any) any { return i.(*sql.NullString).String },
+		GoldenType: func(i any) any {
+			rawData := i.(*sql.NullString).String
+			if s, err := strconv.ParseFloat(rawData, 64); err == nil { //nolint:gomnd
+				return s
+			}
+			return rawData
+		},
 	}
 
 	Operators = map[string]string{
@@ -93,11 +103,12 @@ func getTypeAndConverter(t string) (any, TypeConverter) {
 		return f(), TypeConverters[t]
 	}
 
-	// default to use string type
-	if !strTypeRegexp.MatchString(t) {
-		log.Print("unrecognized type: ", t)
+	if strTypeRegexp.MatchString(t) {
+		return Types[StrType](), TypeConverters[StrType]
 	}
-	return Types[StrType](), TypeConverters[StrType]
+
+	log.Printf("unrecognized type: %s, using golden type", t)
+	return Types[GoldenType](), TypeConverters[GoldenType]
 }
 
 // normalize converts various type to standard type
