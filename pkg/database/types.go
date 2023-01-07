@@ -69,7 +69,7 @@ var (
 		StrType: func(i any) any { return i.(*sql.NullString).String },
 		GoldenType: func(i any) any {
 			rawData := i.(*sql.NullString).String
-			if s, err := strconv.ParseFloat(rawData, 64); err == nil { //nolint:gomnd
+			if s, err := strconv.ParseFloat(rawData, 64); err == nil { //nolint:gomnd // golang number
 				return s
 			}
 			return rawData

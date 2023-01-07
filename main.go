@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log"
 	"net/http"
+
+	"github.com/shellfly/rest/pkg/server"
 )
 
 func parseFlags() *Config {
@@ -33,7 +35,7 @@ func parseFlags() *Config {
 func main() {
 	cfg := parseFlags()
 
-	s := NewServer(cfg.DB.URL)
+	s := server.NewServer(cfg.DB.URL)
 	log.Print("listen on addr: ", cfg.Addr)
-	log.Fatal(http.ListenAndServe(cfg.Addr, s)) //nolint:gosec
+	log.Fatal(http.ListenAndServe(cfg.Addr, s)) //nolint:gosec // not handled for now
 }
