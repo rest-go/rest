@@ -37,6 +37,7 @@ var (
 		"NUMERIC":          func() any { return new(sql.NullFloat64) },
 		"FLOAT":            func() any { return new(sql.NullFloat64) },
 		"REAL":             func() any { return new(sql.NullFloat64) },
+		"DOUBLE":           func() any { return new(sql.NullFloat64) },
 		"DOUBLE PRECISION": func() any { return new(sql.NullFloat64) },
 
 		"BOOL":    func() any { return new(sql.NullBool) },
@@ -61,6 +62,7 @@ var (
 		"NUMERIC":          func(i any) any { return i.(*sql.NullFloat64).Float64 },
 		"FLOAT":            func(i any) any { return i.(*sql.NullFloat64).Float64 },
 		"REAL":             func(i any) any { return i.(*sql.NullFloat64).Float64 },
+		"DOUBLE":           func(i any) any { return i.(*sql.NullFloat64).Float64 },
 		"DOUBLE PRECISION": func(i any) any { return i.(*sql.NullFloat64).Float64 },
 
 		"BOOL":    func(i any) any { return i.(*sql.NullBool).Bool },

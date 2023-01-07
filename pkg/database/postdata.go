@@ -24,7 +24,7 @@ type ValuesQuery struct {
 // sql="a=$1, b=$2"
 // args=["a", "b"]
 type SetQuery struct {
-	Index int // index for next field, args number plus 1
+	Index uint // index for next field, args number plus 1
 	Query string
 	Args  []any
 }
@@ -115,25 +115,30 @@ func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 
 // SetQuery return set sql for update
 // TODO: bulk update
-func (pd *PostData) SetQuery(index int) (*SetQuery, error) {
+func (pd *PostData) SetQuery(index uint) (*SetQuery, error) {
 	if len(pd.objects) != 1 {
 		return nil, errors.New("wrong set data")
 	}
 
 	data := pd.objects[0]
-	var sqlBuilder strings.Builder
+	var queryBuilder strings.Builder
 	args := make([]any, 0, len(data))
+	first := true
 	for k, v := range data {
-		sqlBuilder.WriteString(k)
-		sqlBuilder.WriteString(" = ")
-		sqlBuilder.WriteString(fmt.Sprintf("$%d", index))
+		if !first {
+			queryBuilder.WriteString(", ")
+		}
+		queryBuilder.WriteString(k)
+		queryBuilder.WriteString(" = ")
+		queryBuilder.WriteString(fmt.Sprintf("$%d", index))
 		args = append(args, v)
 		index++
+		first = false
 	}
-	sql := sqlBuilder.String()
+	query := queryBuilder.String()
 	return &SetQuery{
 		index,
-		sql,
+		query,
 		args,
 	}, nil
 }

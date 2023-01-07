@@ -40,7 +40,7 @@ func (q URLQuery) OrderQuery() string {
 }
 
 // WhereQuery returns sql and args for where clause
-func (q URLQuery) WhereQuery(index int) (newIndex int, query string, args []any) {
+func (q URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []any) {
 	if len(q) == 0 {
 		return index, "", nil
 	}
@@ -75,7 +75,7 @@ func (q URLQuery) WhereQuery(index int) (newIndex int, query string, args []any)
 		}
 		queryBuilder.WriteString(column)
 		if op == "in" {
-			queryBuilder.WriteString(" in ")
+			queryBuilder.WriteString(" IN ")
 			queryBuilder.WriteString(val)
 		} else {
 			queryBuilder.WriteString(operator)
