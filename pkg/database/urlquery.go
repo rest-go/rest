@@ -152,5 +152,3 @@ func buildColumn(c string, as bool) (string, error) {
 
 	return columnName, nil
 }
-
-
