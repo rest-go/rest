@@ -32,13 +32,8 @@ func NewServer(url string) *Server {
 	if len(parts) != 2 {
 		log.Fatal(fmt.Errorf("invalid db url: %s", url))
 	}
-
-	driver, dsn := parts[0], parts[1]
-	if driver == "postgres" {
-		driver = "pgx"
-		dsn = url
-	}
-	db, err := sql.Open(driver, dsn)
+	driver := parts[0]
+	db, err := database.Open(url)
 	if err == nil {
 		err = db.Ping()
 	}

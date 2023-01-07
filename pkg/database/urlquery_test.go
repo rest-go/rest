@@ -14,10 +14,10 @@ func TestURLQuerySelectQuery(t *testing.T) {
 	query := q.SelectQuery()
 	assert.Equal(t, "*", query)
 
-	v = url.Values{"select": []string{"a,b,object->>field"}}
+	v = url.Values{"select": []string{"a,b"}}
 	q = NewURLQuery("", v)
 	query = q.SelectQuery()
-	assert.Equal(t, "a,b,object->>'field' AS field", query)
+	assert.Equal(t, "a,b", query)
 }
 
 func TestURLQueryOrderQuery(t *testing.T) {
@@ -73,9 +73,18 @@ func TestURLQueryWhereQuery(t *testing.T) {
 		assert.Equal(t, 2, len(args))
 	})
 
-	t.Run("json", func(t *testing.T) {
-		v := url.Values{"object->>field": []string{"eq.1"}}
-		q := NewURLQuery("", v)
+	t.Run("json mysql", func(t *testing.T) {
+		v := url.Values{"object->>'$.field'": []string{"eq.1"}}
+		q := NewURLQuery("mysql", v)
+		index, query, args := q.WhereQuery(1)
+		assert.Equal(t, uint(2), index)
+		assert.Equal(t, "object->>'$.field' = ?", query)
+		assert.Equal(t, 1, len(args))
+	})
+
+	t.Run("json postgres", func(t *testing.T) {
+		v := url.Values{"object->>'field'": []string{"eq.1"}}
+		q := NewURLQuery("postgres", v)
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(2), index)
 		assert.Equal(t, "object->>'field' = $1", query)

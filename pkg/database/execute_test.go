@@ -41,7 +41,8 @@ var databases []testDB = []testDB{
 		F4 DECIMAl NOT NULL,
 		Data JSON NOT NULL
 	);
-	INSERT INTO customers VALUES (1, 'name', 10.2, 1, 2, 3, 4, true, 1.0, 2.0, 3.0, 4.0, '{"a":1, "b":"hello"}');
+	INSERT INTO customers VALUES
+	 (1, 'name', 10.2, 1, 2, 3, 4, true, 1.0, 2.0, 3.0, 4.0, '{"a":1, "b":"hello", "c":[1,2,3], "d":{"foo":"bar"}}');
 	`},
 	},
 	{
@@ -66,7 +67,8 @@ var databases []testDB = []testDB{
 			F3 DOUBLE NOT NULL,
 			Data JSON NOT NULL
 		)`,
-			`INSERT INTO customers VALUES (1, "name", 10.2, 1, 2, 3, 4, true, false, 1.0, 2.0, 3.0, '{"a":1, "b":"hello"}')`,
+			`INSERT INTO customers VALUES
+			 (1, "name", 10.2, 1, 2, 3, 4, true, false, 1.0, 2.0, 3.0, '{"a":1, "b":"hello", "c":[1,2,3], "d":{"foo":"bar"}}')`,
 		},
 	},
 	{
@@ -91,7 +93,8 @@ var databases []testDB = []testDB{
 			[F3] DOUBLE NOT NULL,
 			[Data] JSON NOT NULL
 		);
-		INSERT INTO customers VALUES (1, "name", 10.2, 1, 2, 3, 4, true, false, 1.0, 2.0, 3.0, '{"a":1, "b":"hello"}');
+		INSERT INTO customers VALUES
+		 (1, "name", 10.2, 1, 2, 3, 4, true, false, 1.0, 2.0, 3.0, '{"a":1, "b":"hello", "c":[1,2,3], "d":{"foo":"bar"}}');
 	`},
 	},
 }
@@ -155,12 +158,45 @@ func TestFetchData(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
+
 			query := fmt.Sprintf("SELECT * FROM customers WHERE id=%s", placeholder(testDB.name, 1))
 			args := []any{1}
-
 			objects, err := FetchData(ctx, db, query, args...)
 			assert.Equal(t, 1, len(objects))
 			assert.Nil(t, err)
+
+			query = "SELECT COUNT(1) AS count FROM customers"
+			objects, err = FetchData(ctx, db, query)
+			assert.Nil(t, err, err)
+			assert.Equal(t, 1, len(objects))
+			t.Log("get count: ", objects[0].(map[string]any)["count"])
+
+			// TODO: json test
+			if testDB.name == "postgres" {
+				query = "SELECT Data,Data->>'a' AS a,Data->>'b' AS b,Data->>'c' AS c,Data->>'d' AS d FROM customers"
+				objects, err = FetchData(ctx, db, query)
+				assert.Nil(t, err, err)
+				assert.Equal(t, 1, len(objects))
+				t.Log("get json data", objects[0])
+
+				query = "SELECT Data FROM customers WHERE Data->>'a'='1'"
+				objects, err = FetchData(ctx, db, query)
+				assert.Nil(t, err, err)
+				assert.Equal(t, 1, len(objects))
+				t.Log("get json data", objects[0])
+			} else if testDB.name == "mysql" {
+				query = "SELECT Data,Data->>'$.a' AS a,Data->>'$.b' AS b,Data->>'$.c' AS c,Data->>'$.d' AS d FROM customers"
+				objects, err = FetchData(ctx, db, query)
+				assert.Nil(t, err, err)
+				assert.Equal(t, 1, len(objects))
+				t.Log("get json data", objects[0])
+
+				query = "SELECT Data FROM customers WHERE Data->'$.a' = ?"
+				objects, err = FetchData(ctx, db, query, 1)
+				assert.Nil(t, err, err)
+				assert.Equal(t, 1, len(objects))
+				t.Log("get json data", objects[0])
+			}
 		})
 	}
 }

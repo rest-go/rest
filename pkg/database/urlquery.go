@@ -1,10 +1,10 @@
 package database
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -27,12 +27,7 @@ func (q *URLQuery) SelectQuery() string {
 
 	columns := strings.Split(selects[0], ",")
 	for i, c := range columns {
-		column, err := buildColumn(c, true)
-		if err != nil {
-			log.Print("invalid column: ", c)
-			continue
-		}
-		columns[i] = column
+		columns[i] = buildColumn(c, true)
 	}
 	return strings.Join(columns, ",")
 }
@@ -75,11 +70,7 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 			queryBuilder.WriteString(" AND ")
 		}
 
-		column, err := buildColumn(k, false)
-		if err != nil {
-			log.Print("invalid field: ", k)
-			continue
-		}
+		column := buildColumn(k, false)
 		queryBuilder.WriteString(column)
 		if op == "in" {
 			queryBuilder.WriteString(" IN ")
@@ -123,32 +114,19 @@ func (q *URLQuery) IsSingular() bool {
 	return ok
 }
 
-func buildColumn(c string, as bool) (string, error) {
-	isJSON := false
+func buildColumn(c string, as bool) string {
 	columnName := c
 	asName := ""
-	if strings.Contains(c, "->") {
-		parts := strings.SplitN(c, "->", 2)
-		if len(parts) != 2 {
-			return "", errors.New("invalid json operation")
-		}
-		columnName = fmt.Sprintf("%s->'%s'", parts[0], parts[1])
-		isJSON = true
-		asName = parts[1]
-	}
-	if strings.Contains(c, "->>") {
-		parts := strings.SplitN(c, "->>", 2)
-		if len(parts) != 2 {
-			return "", errors.New("invalid json operation")
-		}
-		columnName = fmt.Sprintf("%s->>'%s'", parts[0], parts[1])
 
-		isJSON = true
-		asName = parts[1]
+	// a->'b'->>'c' AS c
+	var JSONOP = regexp.MustCompile("->>?")
+	if JSONOP.MatchString(c) {
+		splits := JSONOP.Split(c, -1)
+		asName = strings.Trim(splits[len(splits)-1], "'")
 	}
-	if isJSON && as {
+	if as && asName != "" {
 		columnName += fmt.Sprintf(" AS %s", asName)
 	}
 
-	return columnName, nil
+	return columnName
 }

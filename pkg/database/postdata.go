@@ -85,9 +85,6 @@ func (pd *PostData) unmarshalMany(b []byte) error {
 // valuesQuery convert post data to values query for insertion
 func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 	objects := pd.objects
-	if len(objects) == 0 {
-		return nil, fmt.Errorf("empty data")
-	}
 
 	// use first object's keys as columns
 	columns := make([]string, 0, len(objects[0]))

@@ -66,9 +66,28 @@ func TestPostDataValuesQuery(t *testing.T) {
 			assert.ElementsMatch(t, test.query.Args, query.Args, "args not equal")
 		})
 	}
+
+	t.Run("inconsistency columns with different name", func(t *testing.T) {
+		var data PostData
+		err := json.Unmarshal([]byte(`[{"name":"hello world", "id":1}, {"name2":"rest-go", "id":2}, {"id":3}]`), &data)
+		assert.Nil(t, err)
+		assert.Equal(t, 3, len(data.objects))
+		_, err = data.ValuesQuery()
+		assert.NotNil(t, err)
+	})
+
+	t.Run("inconsistency columns with different length", func(t *testing.T) {
+		var data PostData
+		err := json.Unmarshal([]byte(`[{"name":"hello world", "id":1}, {"id":2}, {"id":3}]`), &data)
+		assert.Nil(t, err)
+		assert.Equal(t, 3, len(data.objects))
+		_, err = data.ValuesQuery()
+		assert.NotNil(t, err)
+	})
+
 	t.Run("invalid json data", func(t *testing.T) {
 		var data PostData
-		err := json.Unmarshal([]byte("{"), &data)
+		err := json.Unmarshal([]byte("1234"), &data)
 		assert.NotNil(t, err)
 		assert.Equal(t, []map[string]interface{}(nil), data.objects)
 	})
