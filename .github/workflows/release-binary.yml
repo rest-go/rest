@@ -1,11 +1,11 @@
-name: release
+name: release-binary
 
 on:
   release:
     types: [created]
 
 jobs:
-  releases-matrix:
+  release-binary:
     name: Release Go Binary
     runs-on: ubuntu-latest
     strategy:
