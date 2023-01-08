@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 )
+
+var jsonPathFunc = map[string]func(column string) (jsonPath, asName string){
+	"postgres": buildPGJSONPath,
+	"mysql":    buildMysqlJSONPath,
+	"sqlite":   buildSqliteJSONPath,
+}
 
 type URLQuery struct {
 	driver string
@@ -27,7 +32,7 @@ func (q *URLQuery) SelectQuery() string {
 
 	columns := strings.Split(selects[0], ",")
 	for i, c := range columns {
-		columns[i] = buildColumn(c, true)
+		columns[i] = q.buildColumn(c, true)
 	}
 	return strings.Join(columns, ",")
 }
@@ -70,11 +75,17 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 			queryBuilder.WriteString(" AND ")
 		}
 
-		column := buildColumn(k, false)
+		column := q.buildColumn(k, false)
 		queryBuilder.WriteString(column)
 		if op == "in" {
-			queryBuilder.WriteString(" IN ")
-			queryBuilder.WriteString(val)
+			vals := strings.Split(strings.Trim(strings.Trim(val, ")"), "("), ",")
+			placeholders := make([]string, len(vals))
+			for i, v := range vals {
+				placeholders[i] = placeholder(q.driver, index)
+				args = append(args, v)
+				index++
+			}
+			queryBuilder.WriteString(fmt.Sprintf(" IN (%s)", strings.Join(placeholders, ",")))
 		} else {
 			queryBuilder.WriteString(operator)
 			queryBuilder.WriteString(placeholder(q.driver, index))
@@ -114,19 +125,75 @@ func (q *URLQuery) IsSingular() bool {
 	return ok
 }
 
-func buildColumn(c string, as bool) string {
+func (q *URLQuery) buildColumn(c string, as bool) string {
 	columnName := c
 	asName := ""
-
-	// a->'b'->>'c' AS c
-	var JSONOP = regexp.MustCompile("->>?")
-	if JSONOP.MatchString(c) {
-		splits := JSONOP.Split(c, -1)
-		asName = strings.Trim(splits[len(splits)-1], "'")
+	if strings.Contains(c, "->") {
+		columnName, asName = jsonPathFunc[q.driver](c)
 	}
 	if as && asName != "" {
 		columnName += fmt.Sprintf(" AS %s", asName)
 	}
-
 	return columnName
+}
+
+func buildMysqlJSONPath(column string) (jsonPath, asName string) {
+	parts := strings.Split(column, "->")
+	columnName := parts[0]
+	parts = parts[1:]
+	for i, part := range parts {
+		part = strings.Trim(strings.Trim(strings.TrimPrefix(part, ">"), `'`), `"`)
+		isIndex := false
+		if _, err := strconv.ParseInt(part, 10, 64); err == nil {
+			isIndex = true
+		}
+		if isIndex {
+			part = fmt.Sprintf("[%s]", part)
+		} else {
+			// use last non number filed as name
+			asName = part
+			// add dot to non number field
+			part = "." + part
+		}
+		parts[i] = part
+	}
+	jsonPath = fmt.Sprintf("%s->'$%s'", columnName, strings.Join(parts, ""))
+	return
+}
+
+func buildPGJSONPath(column string) (jsonPath, asName string) {
+	parts := strings.Split(column, "->")
+	for i, part := range parts {
+		if i == 0 {
+			// skip column name
+			continue
+		}
+		doubleArrow := false
+		if strings.HasPrefix(part, ">") {
+			doubleArrow = true
+			part = part[1:]
+		}
+		part = strings.Trim(strings.Trim(part, `'`), `"`)
+		isIndex := false
+		if _, err := strconv.ParseInt(part, 10, 64); err == nil {
+			isIndex = true
+		}
+		if !isIndex {
+			// use last non number filed as name
+			asName = part
+			// add quote for non number field
+			part = fmt.Sprintf(`'%s'`, part)
+		}
+		if doubleArrow {
+			part = ">" + part
+		}
+		parts[i] = part
+	}
+	jsonPath = strings.Join(parts, "->")
+	return
+}
+
+func buildSqliteJSONPath(column string) (jsonPath, asName string) {
+	// sqlite compatible with MySQL and PG
+	return buildPGJSONPath(column)
 }

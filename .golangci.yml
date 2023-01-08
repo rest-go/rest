@@ -46,6 +46,7 @@ linters-settings:
     ignored-functions:
       - strings.SplitN
       - strconv.ParseFloat
+      - strconv.ParseInt
 
   govet:
     check-shadowing: true

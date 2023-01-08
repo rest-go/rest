@@ -116,15 +116,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) create(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
-	var data database.PostData
-	err := json.NewDecoder(r.Body).Decode(&data)
+	data := database.NewPostData(s.driver)
+	err := json.NewDecoder(r.Body).Decode(data)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to parse post json data, %v", err),
 		}
 	}
-	data.WithDriver(s.driver)
+
 	valuesQuery, err := data.ValuesQuery()
 	if err != nil {
 		return &Response{
@@ -193,7 +193,7 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.UR
 }
 
 func (s *Server) update(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
-	var data database.PostData
+	data := database.NewPostData(s.driver)
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
 		return &Response{
@@ -201,7 +201,6 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *database.UR
 			Msg:  fmt.Sprintf("failed to parse update json data, %v", err),
 		}
 	}
-	data.WithDriver(s.driver)
 	setQuery, err := data.SetQuery(1)
 	if err != nil {
 		return &Response{

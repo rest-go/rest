@@ -10,25 +10,19 @@ import (
 
 type TypeConverter func(any) any
 
-const (
-	StrType    = "StringType"
-	GoldenType = "GoldenType"
-)
-
 var (
-	strTypeRegexp = regexp.MustCompile(`CHAR|TEXT|BIT|UUID|ENUM|BINARY|CLOB|BLOB|JSON|XML|DATETIME|TIMESTAMP`)
 	numericRegexp = regexp.MustCompile(`^(INT|FLOAT)\d+`)
 	// Various data types
 	// PG: https://www.postgresql.org/docs/current/datatype.html
 	// MY: https://dev.mysql.com/doc/refman/8.0/en/data-types.html
 	// SQLITE: https://www.sqlite.org/datatype3.html
 	Types = map[string]func() any{
-		"TINYINT":     func() any { return new(sql.NullInt16) },
-		"SMALLINT":    func() any { return new(sql.NullInt16) },
-		"SMALLSERIAL": func() any { return new(sql.NullInt16) },
-		"SERIAL":      func() any { return new(sql.NullInt32) },
-		"INT":         func() any { return new(sql.NullInt32) },
-		"INTEGER":     func() any { return new(sql.NullInt32) },
+		"TINYINT":     func() any { return new(sql.NullInt64) },
+		"SMALLINT":    func() any { return new(sql.NullInt64) },
+		"SMALLSERIAL": func() any { return new(sql.NullInt64) },
+		"SERIAL":      func() any { return new(sql.NullInt64) },
+		"INT":         func() any { return new(sql.NullInt64) },
+		"INTEGER":     func() any { return new(sql.NullInt64) },
 		"BIGINT":      func() any { return new(sql.NullInt64) },
 		"BIGSERIAL":   func() any { return new(sql.NullInt64) },
 
@@ -43,17 +37,29 @@ var (
 		"BOOL":    func() any { return new(sql.NullBool) },
 		"BOOLEAN": func() any { return new(sql.NullBool) },
 
-		StrType:    func() any { return new(sql.NullString) },
-		GoldenType: func() any { return new(sql.NullString) },
+		"JSON": func() any { return new(sql.NullString) },
+
+		"CHAR":      func() any { return new(sql.NullString) },
+		"VARCHAR":   func() any { return new(sql.NullString) },
+		"NVARCHAR":  func() any { return new(sql.NullString) },
+		"TEXT":      func() any { return new(sql.NullString) },
+		"UUID":      func() any { return new(sql.NullString) },
+		"ENUM":      func() any { return new(sql.NullString) },
+		"BLOB":      func() any { return new(sql.NullString) },
+		"BINARY":    func() any { return new(sql.NullString) },
+		"XML":       func() any { return new(sql.NullString) },
+		"DATE":      func() any { return new(sql.NullString) },
+		"DATETIME":  func() any { return new(sql.NullString) },
+		"TIMESTAMP": func() any { return new(sql.NullString) },
 	}
 
 	TypeConverters = map[string]TypeConverter{
-		"TINYINT":     func(i any) any { return i.(*sql.NullInt16).Int16 },
-		"SMALLINT":    func(i any) any { return i.(*sql.NullInt16).Int16 },
-		"SMALLSERIAL": func(i any) any { return i.(*sql.NullInt16).Int16 },
-		"SERIAL":      func(i any) any { return i.(*sql.NullInt32).Int32 },
-		"INT":         func(i any) any { return i.(*sql.NullInt32).Int32 },
-		"INTEGER":     func(i any) any { return i.(*sql.NullInt32).Int32 },
+		"TINYINT":     func(i any) any { return i.(*sql.NullInt64).Int64 },
+		"SMALLINT":    func(i any) any { return i.(*sql.NullInt64).Int64 },
+		"SMALLSERIAL": func(i any) any { return i.(*sql.NullInt64).Int64 },
+		"SERIAL":      func(i any) any { return i.(*sql.NullInt64).Int64 },
+		"INT":         func(i any) any { return i.(*sql.NullInt64).Int64 },
+		"INTEGER":     func(i any) any { return i.(*sql.NullInt64).Int64 },
 		"BIGINT":      func(i any) any { return i.(*sql.NullInt64).Int64 },
 		"BIGSERIAL":   func(i any) any { return i.(*sql.NullInt64).Int64 },
 
@@ -68,10 +74,25 @@ var (
 		"BOOL":    func(i any) any { return i.(*sql.NullBool).Bool },
 		"BOOLEAN": func(i any) any { return i.(*sql.NullBool).Bool },
 
-		StrType: func(i any) any { return i.(*sql.NullString).String },
-		GoldenType: func(i any) any {
+		"CHAR":      func(i any) any { return i.(*sql.NullString).String },
+		"VARCHAR":   func(i any) any { return i.(*sql.NullString).String },
+		"NVARCHAR":  func(i any) any { return i.(*sql.NullString).String },
+		"TEXT":      func(i any) any { return i.(*sql.NullString).String },
+		"UUID":      func(i any) any { return i.(*sql.NullString).String },
+		"ENUM":      func(i any) any { return i.(*sql.NullString).String },
+		"BLOB":      func(i any) any { return i.(*sql.NullString).String },
+		"BINARY":    func(i any) any { return i.(*sql.NullString).String },
+		"XML":       func(i any) any { return i.(*sql.NullString).String },
+		"DATE":      func(i any) any { return i.(*sql.NullString).String },
+		"DATETIME":  func(i any) any { return i.(*sql.NullString).String },
+		"TIMESTAMP": func(i any) any { return i.(*sql.NullString).String },
+
+		"JSON": func(i any) any {
 			rawData := i.(*sql.NullString).String
 			if s, err := strconv.ParseFloat(rawData, 64); err == nil {
+				return s
+			}
+			if s, err := strconv.ParseBool(rawData); err == nil {
 				return s
 			}
 			return rawData
@@ -103,23 +124,24 @@ func getTypeAndConverter(t string) (any, TypeConverter) {
 	t = normalize(t)
 	if f, ok := Types[t]; ok {
 		return f(), TypeConverters[t]
+	} else {
+		t = numericRegexp.ReplaceAllString(t, "${1}")
+		if f, ok := Types[t]; ok {
+			return f(), TypeConverters[t]
+		}
 	}
 
-	if strTypeRegexp.MatchString(t) {
-		return Types[StrType](), TypeConverters[StrType]
-	}
-
-	log.Printf("unrecognized type: %s, using golden type", t)
-	return Types[GoldenType](), TypeConverters[GoldenType]
+	log.Printf("unrecognized type: %s, using JSON type to guess", t)
+	return Types["JSON"](), TypeConverters["JSON"]
 }
 
 // normalize converts various type to standard type
 // e.g. sqlite has NVARCHAR(70), NUMERIC(10,2) will be NVARCHAR and NEMERIC
+// PG has INT4,INT8,FLOAT4 etc. will be INT, FLOAT
 func normalize(t string) string {
 	i := strings.Index(t, "(")
 	if i != -1 {
 		t = t[:i]
 	}
-	t = numericRegexp.ReplaceAllString(t, "${1}")
 	return strings.ToUpper(t)
 }

@@ -8,6 +8,53 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestURLQueryJSON test json related queries
+// https://www.postgresql.org/docs/12/functions-json.html
+// https://dev.mysql.com/doc/refman/8.0/en/json.html
+// https://www.sqlite.org/json1.html
+func TestURLQueryJSON(t *testing.T) {
+	for _, test := range []struct {
+		driver      string
+		jsonPath    string
+		selectQuery string
+		whereQuery  string
+	}{
+		{
+			driver:      "postgres",
+			jsonPath:    "object->1->field1->field2->>2",
+			selectQuery: "object->1->'field1'->'field2'->>2 AS field2",
+			whereQuery:  "object->1->'field1'->'field2'->>2 = $1",
+		},
+		{
+			driver:      "mysql",
+			jsonPath:    "object->1->field1->field2->>2",
+			selectQuery: "object->'$[1].field1.field2[2]' AS field2",
+			whereQuery:  "object->'$[1].field1.field2[2]' = ?",
+		},
+		{
+			driver:      "sqlite",
+			jsonPath:    "object->1->field1->field2->>2",
+			selectQuery: "object->1->'field1'->'field2'->>2 AS field2",
+			whereQuery:  "object->1->'field1'->'field2'->>2 = $1",
+		},
+	} {
+		t.Run(test.driver+" select", func(t *testing.T) {
+			v := url.Values{"select": []string{test.jsonPath}}
+			q := NewURLQuery(test.driver, v)
+			query := q.SelectQuery()
+			assert.Equal(t, test.selectQuery, query)
+		})
+		t.Run(test.driver+" where", func(t *testing.T) {
+			v := url.Values{test.jsonPath: []string{"eq.1"}}
+			q := NewURLQuery(test.driver, v)
+			index, query, args := q.WhereQuery(1)
+			assert.Equal(t, uint(2), index)
+			assert.Equal(t, test.whereQuery, query)
+			assert.Equal(t, []any{"1"}, args)
+		})
+	}
+}
+
 func TestURLQuerySelectQuery(t *testing.T) {
 	v := url.Values{}
 	q := NewURLQuery("", v)
@@ -36,7 +83,16 @@ func TestURLQueryOrderQuery(t *testing.T) {
 func TestURLQueryWhereQuery(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		v := url.Values{}
-		q := NewURLQuery("", v)
+		q := NewURLQuery("sqlite", v)
+		index, query, args := q.WhereQuery(1)
+		assert.Equal(t, uint(1), index)
+		assert.Equal(t, "", query)
+		assert.Equal(t, 0, len(args))
+	})
+
+	t.Run("skip invalid query", func(t *testing.T) {
+		v := url.Values{"select": []string{"*"}, "count": []string{""}, "noop": []string{"noop.1"}, "invalival": []string{"a.b.c=1"}}
+		q := NewURLQuery("sqlite", v)
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(1), index)
 		assert.Equal(t, "", query)
@@ -49,7 +105,7 @@ func TestURLQueryWhereQuery(t *testing.T) {
 				continue
 			}
 			v := url.Values{"a": []string{fmt.Sprintf("%s.1", op)}}
-			q := NewURLQuery("", v)
+			q := NewURLQuery("sqlite", v)
 			index, query, args := q.WhereQuery(1)
 			assert.Equal(t, uint(2), index)
 			assert.Equal(t, fmt.Sprintf("a%s$1", operator), query)
@@ -57,38 +113,20 @@ func TestURLQueryWhereQuery(t *testing.T) {
 		}
 
 		v := url.Values{"a": []string{"in.(1,2)"}}
-		q := NewURLQuery("", v)
+		q := NewURLQuery("sqlite", v)
 		index, query, args := q.WhereQuery(1)
-		assert.Equal(t, uint(1), index)
-		assert.Equal(t, "a IN (1,2)", query)
-		assert.Equal(t, 0, len(args))
+		assert.Equal(t, uint(3), index)
+		assert.Equal(t, "a IN ($1,$2)", query)
+		assert.Equal(t, 2, len(args))
 	})
 
 	t.Run("AND", func(t *testing.T) {
 		v := url.Values{"a": []string{"eq.1"}, "b": []string{"eq.2"}}
-		q := NewURLQuery("", v)
+		q := NewURLQuery("sqlite", v)
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(3), index)
 		assert.Contains(t, query, " AND ")
 		assert.Equal(t, 2, len(args))
-	})
-
-	t.Run("json mysql", func(t *testing.T) {
-		v := url.Values{"object->>'$.field'": []string{"eq.1"}}
-		q := NewURLQuery("mysql", v)
-		index, query, args := q.WhereQuery(1)
-		assert.Equal(t, uint(2), index)
-		assert.Equal(t, "object->>'$.field' = ?", query)
-		assert.Equal(t, 1, len(args))
-	})
-
-	t.Run("json postgres", func(t *testing.T) {
-		v := url.Values{"object->>'field'": []string{"eq.1"}}
-		q := NewURLQuery("postgres", v)
-		index, query, args := q.WhereQuery(1)
-		assert.Equal(t, uint(2), index)
-		assert.Equal(t, "object->>'field' = $1", query)
-		assert.Equal(t, 1, len(args))
 	})
 }
 

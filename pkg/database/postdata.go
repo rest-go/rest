@@ -34,15 +34,12 @@ type PostData struct {
 	objects []map[string]any
 }
 
-func (pd *PostData) WithDriver(driver string) {
-	pd.driver = driver
+func NewPostData(driver string) *PostData {
+	return &PostData{driver: driver}
 }
 
 // UnmarshalJSON implements json.Unmarshaler
 func (pd *PostData) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 {
-		return fmt.Errorf("no bytes to unmarshal")
-	}
 	// guess based on the first character
 	switch b[0] {
 	case '{':

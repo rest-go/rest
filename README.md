@@ -109,10 +109,11 @@ func main() {
   - [x] quote
 - [x] json (mysql & sqlite)
 - [x] test for different db (github action)
+- [ ] dump
 ## Road map
 - [ ] Resource Embedding(one,many)
+- [ ] open api
 - [ ] Logical operators(or, and is already in code)
 - [ ] escape field name
 - [ ] application/x-www-form-urlencoded
-- [ ] open api
 - [ ] web management
