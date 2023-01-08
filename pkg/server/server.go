@@ -34,9 +34,6 @@ func NewServer(url string) *Server {
 	}
 	driver := parts[0]
 	db, err := database.Open(url)
-	if err == nil {
-		err = db.Ping()
-	}
 	if err != nil {
 		log.Fatal(err)
 	}

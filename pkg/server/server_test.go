@@ -15,6 +15,12 @@ func TestServer(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
 
+		testServer.WithPrefix("/admin")
+		res, err = request(http.MethodGet, "/admin", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
+
+		testServer.WithPrefix("")
 		res, err = request(http.MethodGet, "/customers", nil)
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
@@ -135,6 +141,16 @@ func TestServer_Read(t *testing.T) {
 
 	t.Run("many", func(t *testing.T) {
 		res, err := request(http.MethodGet, "/invoices", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
+		objects, ok := res.Data.([]any)
+		assert.True(t, ok)
+		assert.Equal(t, 2, len(objects))
+		t.Log("get invoices: ", objects)
+	})
+
+	t.Run("many with order", func(t *testing.T) {
+		res, err := request(http.MethodGet, "/invoices?order=InvoiceID.desc", nil)
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, res.Code, res.Msg)
 		objects, ok := res.Data.([]any)
