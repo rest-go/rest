@@ -16,6 +16,9 @@ var (
 	// PG: https://www.postgresql.org/docs/current/datatype.html
 	// MY: https://dev.mysql.com/doc/refman/8.0/en/data-types.html
 	// SQLITE: https://www.sqlite.org/datatype3.html
+	// TODO: benchmark performance of regexp match VS map access
+	// the code below could be simplified by using regexp, but declare it in a
+	// map should result in better performance in theory.
 	Types = map[string]func() any{
 		"TINYINT":     func() any { return new(sql.NullInt64) },
 		"SMALLINT":    func() any { return new(sql.NullInt64) },

@@ -25,10 +25,10 @@ func TestPostDataValuesQuery(t *testing.T) {
 				},
 			},
 			query: &ValuesQuery{
-				Index:   3,
-				Columns: []string{"id", "name"},
-				Vals:    []string{"($1,$2)"},
-				Args:    []any{"hello world", float64(1)},
+				Index:        3,
+				Columns:      []string{"id", "name"},
+				Placeholders: []string{"($1,$2)"},
+				Args:         []any{"hello world", float64(1)},
 			},
 		},
 		{
@@ -45,10 +45,10 @@ func TestPostDataValuesQuery(t *testing.T) {
 				},
 			},
 			query: &ValuesQuery{
-				Index:   5,
-				Columns: []string{"id", "name"},
-				Vals:    []string{"($1,$2)", "($3,$4)"},
-				Args:    []any{"hello world", float64(1), "rest-go", float64(2)},
+				Index:        5,
+				Columns:      []string{"id", "name"},
+				Placeholders: []string{"($1,$2)", "($3,$4)"},
+				Args:         []any{"hello world", float64(1), "rest-go", float64(2)},
 			},
 		},
 	}
@@ -62,7 +62,7 @@ func TestPostDataValuesQuery(t *testing.T) {
 			assert.Nil(t, err)
 			assert.Equal(t, test.query.Index, query.Index, "index not equal")
 			assert.ElementsMatch(t, test.query.Columns, query.Columns, "columns not equal")
-			assert.ElementsMatch(t, test.query.Vals, query.Vals, "vals not equal")
+			assert.ElementsMatch(t, test.query.Placeholders, query.Placeholders, "placeholders not equal")
 			assert.ElementsMatch(t, test.query.Args, query.Args, "args not equal")
 		})
 	}

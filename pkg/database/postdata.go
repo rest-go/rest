@@ -13,10 +13,10 @@ import (
 // vals=["$1,$2", "$3,$4"]
 // args=[v1,v2,v3,v4]
 type ValuesQuery struct {
-	Index   uint // index for next field, args number plus 1
-	Columns []string
-	Vals    []string
-	Args    []any
+	Index        uint // index for next field, args number plus 1
+	Columns      []string
+	Placeholders []string
+	Args         []any
 }
 
 // e.g. UPDATE table SET a="a",b="b"
@@ -89,26 +89,26 @@ func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 		columns = append(columns, k)
 	}
 
-	// build vals and args
-	vals := make([]string, 0, len(objects))
-	args := make([]any, 0, cap(columns)*cap(vals))
+	// build placeholders and args
+	placeholders := make([]string, 0, len(objects))
+	args := make([]any, 0, cap(columns)*cap(placeholders))
 	var index uint = 1
 	for i, object := range objects {
-		val := make([]string, 0, len(object))
+		valPlaceholder := make([]string, 0, len(object))
 		if i > 0 && !identKeys(object, columns) {
 			// validate object's keys with columns
 			return nil, fmt.Errorf("columns must be same for all objects, invalid object: %v", object)
 		}
 		// consistent column order with first object
 		for _, c := range columns {
-			val = append(val, placeholder(pd.driver, index))
+			valPlaceholder = append(valPlaceholder, placeholder(pd.driver, index))
 			args = append(args, object[c])
 			index++
 		}
-		vals = append(vals, fmt.Sprintf("(%s)", strings.Join(val, ",")))
+		placeholders = append(placeholders, fmt.Sprintf("(%s)", strings.Join(valPlaceholder, ",")))
 	}
 	return &ValuesQuery{
-		index, columns, vals, args,
+		index, columns, placeholders, args,
 	}, nil
 }
 

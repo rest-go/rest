@@ -134,7 +134,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *database.UR
 		"INSERT INTO %s (%s) VALUES %s",
 		tableName,
 		strings.Join(valuesQuery.Columns, ","),
-		strings.Join(valuesQuery.Vals, ","))
+		strings.Join(valuesQuery.Placeholders, ","))
 	args := valuesQuery.Args
 	if urlQuery.IsDebug() {
 		return s.debug(query, args...)
@@ -147,10 +147,10 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *database.UR
 			Msg:  dbErr.Msg,
 		}
 	}
-	if rows != int64(len(valuesQuery.Vals)) {
+	if rows != int64(len(valuesQuery.Placeholders)) {
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Msg:  fmt.Sprintf("expected to insert %d rows, but affected %d rows", len(valuesQuery.Vals), rows),
+			Msg:  fmt.Sprintf("expected to insert %d rows, but affected %d rows", len(valuesQuery.Placeholders), rows),
 		}
 	}
 
