@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -20,7 +21,7 @@ const (
 DROP TABLE IF EXISTS "customers";
 CREATE TABLE IF NOT EXISTS "customers"
 (
-    [CustomerId] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    [Id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     [FirstName] NVARCHAR(40)  NOT NULL,
     [LastName] NVARCHAR(20)  NOT NULL,
     [Email] NVARCHAR(60)  NOT NULL,
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "customers"
 DROP TABLE IF EXISTS "invoices";
 CREATE TABLE IF NOT EXISTS "invoices"
 (
-    [InvoiceId] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    [Id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     [CustomerId] INTEGER  NOT NULL,
     [InvoiceDate] DATETIME  NOT NULL,
     [BillingAddress] NVARCHAR(70),
@@ -59,19 +60,26 @@ func setupData() error {
 		return err
 	}
 	body := strings.NewReader(`{
-		"CustomerId": 1,
+		"Id": 1,
 		"FirstName": "first name",
 		"LastName": "last_name",
 		"Email": "a@b.com", 
 		"Active":true
 	}`)
-	if _, err := request(http.MethodPost, "/customers", body); err != nil {
-		return err
+	data, err := request(http.MethodPost, "/customers", body)
+	if err == nil {
+		m := data.(map[string]any)
+		if int(m["code"].(float64)) != 200 {
+			err = fmt.Errorf("%v", data)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to insert customers: %w", err)
 	}
 
 	body = strings.NewReader(`[
 			{
-				"InvoiceID": 1,
+				"Id": 1,
 				"CustomerId":1,
 				"InvoiceDate": "2023-01-02 03:04:05",
 				"BillingAddress": "I'm an address",
@@ -79,7 +87,7 @@ func setupData() error {
 				"Data": "{\"Country\": \"I'm an country\", \"PostalCode\":1234}"
 			},
 			{
-				"InvoiceID": 2,
+				"Id": 2,
 				"CustomerId":1,
 				"InvoiceDate": "2023-01-02 03:04:05",
 				"BillingAddress": "I'm an address",
@@ -87,11 +95,20 @@ func setupData() error {
 				"Data": "{\"Country\": \"I'm an country\", \"PostalCode\":1234}"
 			}
 		]`)
-	_, err := request(http.MethodPost, "/invoices", body)
-	return err
+	data, err = request(http.MethodPost, "/invoices", body)
+	if err == nil {
+		m := data.(map[string]any)
+		if int(m["code"].(float64)) != 200 {
+			err = fmt.Errorf("%v", data)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to insert customers: %w", err)
+	}
+	return nil
 }
 
-func request(method, target string, body io.Reader) (*Response, error) {
+func request(method, target string, body io.Reader) (any, error) {
 	req := httptest.NewRequest(method, target, body)
 	w := httptest.NewRecorder()
 	testServer.ServeHTTP(w, req)
@@ -102,7 +119,33 @@ func request(method, target string, body io.Reader) (*Response, error) {
 		return nil, err
 	}
 
-	var response Response
-	err = json.Unmarshal(data, &response)
-	return &response, err
+	// resData is map or list
+	var resData any
+	err = json.Unmarshal(data, &resData)
+	return resData, err
+}
+
+func assertStatus(t *testing.T, status int, data any) {
+	t.Helper()
+	res := data.(map[string]any)
+	code := int(res["code"].(float64))
+	if status != code {
+		t.Errorf("expected: %d, got: %d, msg: %s", status, code, res["msg"])
+	}
+}
+
+func assertLength(t *testing.T, length int, data any) {
+	t.Helper()
+	objects := data.([]any)
+	if length != len(objects) {
+		t.Errorf("expected length: %d, got: %d", length, len(objects))
+	}
+}
+
+func assertEqualField(t *testing.T, expectedVal string, data any, field string) {
+	t.Helper()
+	m := data.(map[string]any)
+	if expectedVal != fmt.Sprintf("%v", m[field]) {
+		t.Errorf("expected field val: %s, got: %v, data: %v", expectedVal, m[field], data)
+	}
 }

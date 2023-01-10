@@ -64,10 +64,15 @@ func (s *Server) debug(query string, args ...any) *Response {
 	}
 }
 
-func (s *Server) json(w http.ResponseWriter, res *Response) {
+func (s *Server) json(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(res.Code)
-	if err := json.NewEncoder(w).Encode(res); err != nil {
+	if res, ok := data.(*Response); ok {
+		w.WriteHeader(res.Code)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Printf("failed to encode json data, %v", err)
 	}
 }
@@ -83,6 +88,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.json(w, res)
 		return
 	}
+
+	id := ""
+	parts := strings.Split(table, "/")
+	if len(parts) == 2 {
+		table, id = parts[0], parts[1]
+	}
 	if !database.IsValidTableName(table) {
 		res := &Response{
 			Code: http.StatusBadRequest,
@@ -92,27 +103,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var res *Response
-	urlQuery := database.NewURLQuery(s.driver, r.URL.Query())
+	var data any
+	values := r.URL.Query()
+	if id != "" {
+		values.Set("id", fmt.Sprintf("eq.%s", id))
+	}
+	urlQuery := database.NewURLQuery(s.driver, values)
 	switch r.Method {
 	case "POST":
-		res = s.create(r, table, urlQuery)
+		data = s.create(r, table, urlQuery)
 	case "DELETE":
-		res = s.delete(r, table, urlQuery)
+		data = s.delete(r, table, urlQuery)
 	case "PUT", "PATCH":
-		res = s.update(r, table, urlQuery)
+		data = s.update(r, table, urlQuery)
 	case "GET":
-		res = s.get(r, table, urlQuery)
+		data = s.get(r, table, urlQuery)
 	default:
-		res = &Response{
+		data = &Response{
 			Code: http.StatusMethodNotAllowed,
 			Msg:  fmt.Sprintf("method not supported: %s", r.Method),
 		}
 	}
-	s.json(w, res)
+	s.json(w, data)
 }
 
-func (s *Server) create(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
+func (s *Server) create(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
 	data := database.NewPostData(s.driver)
 	err := json.NewDecoder(r.Body).Decode(data)
 	if err != nil {
@@ -156,11 +171,11 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *database.UR
 
 	return &Response{
 		Code: http.StatusOK,
-		Msg:  "success",
+		Msg:  fmt.Sprintf("successfully inserted %d rows", rows),
 	}
 }
 
-func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
+func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString("DELETE FROM ")
 	queryBuilder.WriteString(tableName)
@@ -235,7 +250,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *database.UR
 	}
 }
 
-func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
+func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
 	if urlQuery.IsCount() {
 		return s.count(r, tableName)
 	}
@@ -278,8 +293,13 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQu
 		}
 	}
 	var data any = objects
-	if urlQuery.IsSingular() {
-		if len(objects) != 1 {
+	if urlQuery.IsSingular() || urlQuery.HasID() {
+		if len(objects) == 0 {
+			return &Response{
+				Code: http.StatusNotFound,
+				Msg:  "query data not found in database",
+			}
+		} else if len(objects) > 1 {
 			return &Response{
 				Code: http.StatusBadRequest,
 				Msg:  fmt.Sprintf("expect singular data, but got %d rows", len(objects)),
@@ -287,14 +307,10 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQu
 		}
 		data = objects[0]
 	}
-	return &Response{
-		Code: http.StatusOK,
-		Msg:  "success",
-		Data: data,
-	}
+	return data
 }
 
-func (s *Server) count(r *http.Request, tableName string) *Response {
+func (s *Server) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
 	rows, dbErr := database.FetchData(r.Context(), s.db, query)
 	if dbErr != nil {
@@ -303,10 +319,6 @@ func (s *Server) count(r *http.Request, tableName string) *Response {
 			Msg:  dbErr.Msg,
 		}
 	}
-
-	return &Response{
-		Code: http.StatusOK,
-		Msg:  "success",
-		Data: rows[0],
-	}
+	data := rows[0].(map[string]any)
+	return data["count"]
 }

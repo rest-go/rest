@@ -4,7 +4,7 @@ Logo
 ![ci](https://github.com/rest-go/rest/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/rest-go/rest/branch/main/graph/badge.svg?token=T38FWXMVY1)](https://codecov.io/gh/rest-go/rest)
 
-Rest serves a fully RESTful API from any (PostgreSQL/MySQL/SQLite) database.
+Rest serves a fully RESTful API from any SQL database, PostgreSQL, MySQL and SQLite are supported for now.
 
 Visit https://rest-go.com for the full documentation, examples and guides.
 
@@ -13,60 +13,45 @@ Visit https://rest-go.com for the full documentation, examples and guides.
 There are various ways of installing Rest.
 
 #### Precompiled binaries
-Precompiled binaries for released versions are available in the [Releases page](https://github.com/rest-go/rest/releases). Using the latest production release binary is the recommended way of installing Rest. See the [INSTALLATION]() chapter in the documentation for all the details.
+Precompiled binaries for released versions are available in the [Releases page](https://github.com/rest-go/rest/releases). Using the latest production release binary is the recommended way of installing rest.
 
 #### Go install
-
+If you are familiar with Golang, you can use go install
 ``` bash
 go install github.com/rest-go/rest
 ```
 
 ## Run rest server
+Run rest server with a database url
 ``` bash
-# PG
 rest -db.url "postgres://user:passwd@localhost:5432/db?search_path=api"
-
-# MySQL
-rest -db.url "mysql://user:passwd@tcp(localhost:3306)/db"
-
-# SQLite
-rest -db.url "sqlite://chinook.db"
 ```
 
 ## Use API
+e.g. there ia a `todo` table in the database with `id`, `title` fields:
 
 ``` bash
-# Create an artist
-curl -XPOST "localhost:3000/artists" -d '{"artistid":10000, "name": "Bruce Lee"}'
+# Create a todo item
+curl -XPOST "localhost:3000/todos" -d '{"title": "setup api server"}'
 
-# Read an artist
-curl -XGET "localhost:3000/artists?&artistid=eq.10000"
+# Read
+curl -XGET "localhost:3000/todos/1"
 
 # Update
-curl -XPUT "localhost:3000/artists?&artistid=eq.10000" -d '{"name": "Stephen Chow"}'
+curl -XPUT "localhost:3000/todos/1" -d '{"title": "setup api server done"}'
 
 # Delete
-curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
+curl -XDELETE "localhost:3000/todos/1"
 ```
 
 ## Docker image
 
 ``` bash
-# for mysql
+# connect to mysql
 docker run -p 3000:3000 restgo/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
 
-# for sqlite with mounted volume
-docker run -p 3000:3000 -v $(pwd):/data restgo/rest -db.url "sqlite:///data/chinook.db"
-```
-
-## JSON
-
-``` bash
-# POST json
-curl -XPOST "localhost:3000/people" -d '{"id":1, "json_data": {"blood_type":"A-", "phones":[{"country_code":61, "number":"919-929-5745"}]}}'
-
-# Fetch json field
-curl "http://localhost:3000/people?select=id,json_data->>blood_type,json_data->>phones"
+# connect to sqlite file with volume
+docker run -p 3000:3000 -v $(pwd):/data restgo/rest -db.url "sqlite:///data/my.db"
 ```
 
 ## Use rest as a Go library
@@ -83,7 +68,7 @@ import (
 )
 
 func main() {
-	s := server.NewServer("sqlite://chinook.db")
+	s := server.NewServer("sqlite://my.db")
 	http.Handle("/", s)
 	// or with prefix
 	// http.Handle("/admin", s.WithPrefix("/admin"))

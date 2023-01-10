@@ -23,6 +23,15 @@ func NewURLQuery(driver string, values url.Values) *URLQuery {
 	return &URLQuery{driver, values}
 }
 
+func (q *URLQuery) Set(key, value string) {
+	q.values[key] = []string{value}
+}
+
+func (q *URLQuery) HasID() bool {
+	ids, ok := q.values["id"]
+	return ok && len(ids) > 0
+}
+
 // SelectQuery return sql projection string
 func (q *URLQuery) SelectQuery() string {
 	selects := q.values["select"]
