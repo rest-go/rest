@@ -1,4 +1,4 @@
-module github.com/shellfly/rest
+module github.com/rest-go/rest
 
 go 1.18
 

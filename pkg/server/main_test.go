@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shellfly/rest/pkg/database"
+	"github.com/rest-go/rest/pkg/database"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/shellfly/rest/pkg/database"
+	"github.com/rest-go/rest/pkg/database"
 )
 
 // Response serves JSON output for all restful apis

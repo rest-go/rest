@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/shellfly/rest/pkg/server"
+	"github.com/rest-go/rest/pkg/server"
 )
 
 func parseFlags() *Config {

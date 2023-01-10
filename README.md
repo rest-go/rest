@@ -1,8 +1,8 @@
 # Rest
 Logo
 
-![ci](https://github.com/shellfly/rest/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/gh/shellfly/rest/branch/main/graph/badge.svg?token=4B8AXQ3HR0)](https://codecov.io/gh/shellfly/rest)
+![ci](https://github.com/rest-go/rest/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/rest-go/rest/branch/main/graph/badge.svg?token=T38FWXMVY1)](https://codecov.io/gh/rest-go/rest)
 
 Rest serves a fully RESTful API from any (PostgreSQL/MySQL/SQLite) database.
 
@@ -13,12 +13,12 @@ Visit https://rest-go.com for the full documentation, examples and guides.
 There are various ways of installing Rest.
 
 #### Precompiled binaries
-Precompiled binaries for released versions are available in the [Releases page](https://github.com/shellfly/rest/releases). Using the latest production release binary is the recommended way of installing Rest. See the [INSTALLATION]() chapter in the documentation for all the details.
+Precompiled binaries for released versions are available in the [Releases page](https://github.com/rest-go/rest/releases). Using the latest production release binary is the recommended way of installing Rest. See the [INSTALLATION]() chapter in the documentation for all the details.
 
 #### Go install
 
 ``` bash
-go install github.com/shellfly/rest
+go install github.com/rest-go/rest
 ```
 
 ## Run rest server
@@ -53,10 +53,10 @@ curl -XDELETE "localhost:3000/artists?&artistid=eq.10000"
 
 ``` bash
 # for mysql
-docker run -p 3000:3000 shellfly/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
+docker run -p 3000:3000 restgo/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
 
 # for sqlite with mounted volume
-docker run -p 3000:3000 -v $(pwd):/data shellfly/rest -db.url "sqlite:///data/chinook.db"
+docker run -p 3000:3000 -v $(pwd):/data restgo/rest -db.url "sqlite:///data/chinook.db"
 ```
 
 ## JSON
@@ -79,7 +79,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/shellfly/rest/pkg/server"
+	"github.com/rest-go/rest/pkg/server"
 )
 
 func main() {
