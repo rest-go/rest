@@ -11,11 +11,10 @@ import (
 	"github.com/rest-go/rest/pkg/database"
 )
 
-// Response serves JSON output for all restful apis
+// Response serves a default JSON output when no data fetched from data
 type Response struct {
-	Code int    `json:"code"`
+	Code int    `json:"-"` // write to http status code
 	Msg  string `json:"msg"`
-	Data any    `json:"data,omitempty"`
 }
 
 // Server is the representation of a restful server which handles CRUD requests
@@ -51,16 +50,12 @@ func (s *Server) WithPrefix(prefix string) *Server {
 	return s
 }
 
-func (s *Server) debug(query string, args ...any) *Response {
-	return &Response{
-		Code: http.StatusOK,
-		Msg:  "success",
-		Data: struct {
-			Query string `json:"query"`
-			Args  []any  `json:"args"`
-		}{
-			query, args,
-		},
+func (s *Server) debug(query string, args ...any) any {
+	return &struct {
+		Query string `json:"query"`
+		Args  []any  `json:"args"`
+	}{
+		query, args,
 	}
 }
 
@@ -204,7 +199,7 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.UR
 	}
 }
 
-func (s *Server) update(r *http.Request, tableName string, urlQuery *database.URLQuery) *Response {
+func (s *Server) update(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
 	data := database.NewPostData(s.driver)
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {

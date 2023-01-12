@@ -11,31 +11,32 @@ import (
 
 func TestServer(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/", nil)
+		code, _, err := request(http.MethodGet, "/", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusOK, data)
+		assert.Equal(t, http.StatusOK, code)
 
 		testServer.WithPrefix("/admin")
-		data, err = request(http.MethodGet, "/admin", nil)
+		code, _, err = request(http.MethodGet, "/admin", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusOK, data)
+		assert.Equal(t, http.StatusOK, code)
 
 		testServer.WithPrefix("")
-		data, err = request(http.MethodGet, "/customers", nil)
+		code, data, err := request(http.MethodGet, "/customers", nil)
 		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 		assertLength(t, 1, data)
 	})
 
 	t.Run("invalid table", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/0invalid_table_name", nil)
+		code, _, err := request(http.MethodGet, "/0invalid_table_name", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusBadRequest, data)
+		assert.Equal(t, http.StatusBadRequest, code)
 	})
 
 	t.Run("invalid method", func(t *testing.T) {
-		data, err := request(http.MethodHead, "/customers", nil)
+		code, _, err := request(http.MethodHead, "/customers", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusMethodNotAllowed, data)
+		assert.Equal(t, http.StatusMethodNotAllowed, code)
 	})
 }
 
@@ -43,9 +44,9 @@ func TestServer(t *testing.T) {
 // created without affect other tests to assert test data.
 func TestServer_Create_Delete(t *testing.T) {
 	t.Run("duplicate id", func(t *testing.T) {
-		data, err := request(http.MethodPost, "/customers", nil)
+		code, _, err := request(http.MethodPost, "/customers", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusBadRequest, data)
+		assert.Equal(t, http.StatusBadRequest, code)
 
 		body := strings.NewReader(`{
 			"Id": 1,
@@ -54,9 +55,9 @@ func TestServer_Create_Delete(t *testing.T) {
 			"Email": "a@b.com",
 			"Active": true
 		}`)
-		data, err = request(http.MethodPost, "/customers", body)
+		code, _, err = request(http.MethodPost, "/customers", body)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusConflict, data)
+		assert.Equal(t, http.StatusConflict, code)
 	})
 	t.Run("single", func(t *testing.T) {
 		body := strings.NewReader(`{
@@ -66,9 +67,9 @@ func TestServer_Create_Delete(t *testing.T) {
 			"Email": "a@b.com",
 			"Active": true
 		}`)
-		data, err := request(http.MethodPost, "/customers", body)
+		code, _, err := request(http.MethodPost, "/customers", body)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusOK, data)
+		assert.Equal(t, http.StatusOK, code)
 	})
 
 	t.Run("bulk", func(t *testing.T) {
@@ -90,73 +91,80 @@ func TestServer_Create_Delete(t *testing.T) {
 				"Data": "{\"Country\": \"I'm an country\", \"PostalCode\":1234}"
 			}
 		]`)
-		data, err := request(http.MethodPost, "/invoices", body)
+		code, _, err := request(http.MethodPost, "/invoices", body)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusOK, data)
+		assert.Equal(t, http.StatusOK, code)
 	})
 
 	t.Run("delete", func(t *testing.T) {
 		t.Log("delete customers created above")
-		data, err := request(http.MethodDelete, "/customers/100", nil)
+		code, _, err := request(http.MethodDelete, "/customers/100", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusOK, data)
+		assert.Equal(t, http.StatusOK, code)
 
-		data, err = request(http.MethodGet, "/customers/100", nil)
+		code, _, err = request(http.MethodGet, "/customers/100", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusNotFound, data)
+		assert.Equal(t, http.StatusNotFound, code)
 
 		t.Log("delete invoices created above")
-		data, err = request(http.MethodDelete, "/invoices?Id=in.(100,101)", nil)
+		code, _, err = request(http.MethodDelete, "/invoices?Id=in.(100,101)", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusOK, data)
+		assert.Equal(t, http.StatusOK, code)
 
-		data, err = request(http.MethodGet, "/invoices?Id=in.(100,101)", nil)
+		code, data, err := request(http.MethodGet, "/invoices?Id=in.(100,101)", nil)
 		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 		assertLength(t, 0, data)
 	})
 }
 
 func TestServer_Read(t *testing.T) {
 	t.Run("one", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/customers/1", nil)
+		code, data, err := request(http.MethodGet, "/customers/1", nil)
 		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 		assertEqualField(t, "1", data, "Id")
 	})
 
 	t.Run("one singular", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/invoices/1?singular", nil)
+		code, data, err := request(http.MethodGet, "/invoices/1?singular", nil)
+		assert.Equal(t, http.StatusOK, code)
 		assert.Nil(t, err)
 		assertEqualField(t, "1", data, "Id")
 	})
 
 	t.Run("many", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/invoices", nil)
+		code, data, err := request(http.MethodGet, "/invoices", nil)
+		assert.Equal(t, http.StatusOK, code)
 		assert.Nil(t, err)
 		assertLength(t, 2, data)
 		t.Log("get invoices: ", data)
 	})
 
 	t.Run("many with order", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/invoices?order=Id.desc", nil)
+		code, data, err := request(http.MethodGet, "/invoices?order=Id.desc", nil)
 		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 		assertLength(t, 2, data)
 		t.Log("get invoices: ", data)
 	})
 
 	t.Run("many with page", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/invoices", nil)
+		code, data, err := request(http.MethodGet, "/invoices", nil)
 		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 		assertLength(t, 2, data)
 
-		data, err = request(http.MethodGet, "/invoices?page=2&page_size=1", nil)
+		code, data, err = request(http.MethodGet, "/invoices?page=2&page_size=1", nil)
 		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 		assertLength(t, 1, data)
 	})
 
 	t.Run("many singular with error", func(t *testing.T) {
-		data, err := request(http.MethodGet, "/invoices?singular", nil)
+		code, _, err := request(http.MethodGet, "/invoices?singular", nil)
 		assert.Nil(t, err)
-		assertStatus(t, http.StatusBadRequest, data)
+		assert.Equal(t, http.StatusBadRequest, code)
 	})
 }
 func TestServerUpdate(t *testing.T) {
@@ -164,37 +172,40 @@ func TestServerUpdate(t *testing.T) {
 	body := strings.NewReader(fmt.Sprintf(`{
 			"FirstName": %q
 		}`, newName))
-	data, err := request(http.MethodPut, "/customers/1", body)
+	code, _, err := request(http.MethodPut, "/customers/1", body)
 	assert.Nil(t, err)
-	assertStatus(t, http.StatusOK, data)
+	assert.Equal(t, http.StatusOK, code)
 
-	data, err = request(http.MethodGet, "/customers/1", body)
+	code, data, err := request(http.MethodGet, "/customers/1", body)
 	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
 	assertEqualField(t, newName, data, "FirstName")
 }
 
 func TestServerDebug(t *testing.T) {
-	data, err := request(http.MethodGet, "/customers?debug", nil)
+	code, data, err := request(http.MethodGet, "/customers?debug", nil)
 	assert.Nil(t, err)
-	assertStatus(t, http.StatusOK, data)
+	assert.Equal(t, http.StatusOK, code)
 	m := data.(map[string]any)
 	t.Log("get debug data: ", m["query"], m["args"])
 
-	data, err = request(http.MethodDelete, "/customers/1&debug", nil)
+	code, data, err = request(http.MethodDelete, "/customers/1&debug", nil)
 	assert.Nil(t, err)
-	assertStatus(t, http.StatusOK, data)
+	assert.Equal(t, http.StatusOK, code)
 	m = data.(map[string]any)
 	t.Log("get debug data: ", m["query"], m["args"])
 }
 func TestServerCount(t *testing.T) {
-	data, err := request(http.MethodGet, "/customers?count", nil)
+	code, data, err := request(http.MethodGet, "/customers?count", nil)
 	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
 	t.Log("get data: ", data)
 	count := data.(float64)
 	assert.Equal(t, float64(1), count, data)
 
-	data, err = request(http.MethodGet, "/invoices?count", nil)
+	code, data, err = request(http.MethodGet, "/invoices?count", nil)
 	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
 	count = data.(float64)
 	assert.Equal(t, float64(2), count, data)
 }

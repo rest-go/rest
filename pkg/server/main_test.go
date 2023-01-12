@@ -66,15 +66,9 @@ func setupData() error {
 		"Email": "a@b.com", 
 		"Active":true
 	}`)
-	data, err := request(http.MethodPost, "/customers", body)
-	if err == nil {
-		m := data.(map[string]any)
-		if int(m["code"].(float64)) != 200 {
-			err = fmt.Errorf("%v", data)
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("failed to insert customers: %w", err)
+	code, data, err := request(http.MethodPost, "/customers", body)
+	if err != nil || code != http.StatusOK {
+		return fmt.Errorf("failed to insert customers, err: %w, code: %d, data: %v", err, code, data)
 	}
 
 	body = strings.NewReader(`[
@@ -95,20 +89,14 @@ func setupData() error {
 				"Data": "{\"Country\": \"I'm an country\", \"PostalCode\":1234}"
 			}
 		]`)
-	data, err = request(http.MethodPost, "/invoices", body)
-	if err == nil {
-		m := data.(map[string]any)
-		if int(m["code"].(float64)) != 200 {
-			err = fmt.Errorf("%v", data)
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("failed to insert customers: %w", err)
+	code, data, err = request(http.MethodPost, "/invoices", body)
+	if err != nil || code != http.StatusOK {
+		return fmt.Errorf("failed to insert invoices, err: %w, code: %d, data: %v", err, code, data)
 	}
 	return nil
 }
 
-func request(method, target string, body io.Reader) (any, error) {
+func request(method, target string, body io.Reader) (code int, resData any, err error) {
 	req := httptest.NewRequest(method, target, body)
 	w := httptest.NewRecorder()
 	testServer.ServeHTTP(w, req)
@@ -116,22 +104,11 @@ func request(method, target string, body io.Reader) (any, error) {
 	defer res.Body.Close()
 	data, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	// resData is map or list
-	var resData any
 	err = json.Unmarshal(data, &resData)
-	return resData, err
-}
-
-func assertStatus(t *testing.T, status int, data any) {
-	t.Helper()
-	res := data.(map[string]any)
-	code := int(res["code"].(float64))
-	if status != code {
-		t.Errorf("expected: %d, got: %d, msg: %s", status, code, res["msg"])
-	}
+	return res.StatusCode, resData, err
 }
 
 func assertLength(t *testing.T, length int, data any) {
