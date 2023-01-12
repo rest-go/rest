@@ -8,54 +8,57 @@ Rest serves a fully RESTful API from any SQL database, PostgreSQL, MySQL and SQL
 
 Visit https://rest-go.com for the full documentation, examples and guides.
 
-## Install
+## Getting Started
 
-There are various ways of installing Rest.
-
-#### Precompiled binaries
-Precompiled binaries for released versions are available in the [Releases page](https://github.com/rest-go/rest/releases). Using the latest production release binary is the recommended way of installing rest.
-
-#### Go install
-If you are familiar with Golang, you can use go install
+### Start Rest in Docker
+run server and connect to an existing database
 ``` bash
-go install github.com/rest-go/rest
-```
-
-## Run rest server
-Run rest server with a database url
-``` bash
-rest -db.url "postgres://user:passwd@localhost:5432/db?search_path=api"
-```
-
-## Use API
-e.g. there ia a `todo` table in the database with `id`, `title` fields:
-
-``` bash
-# Create a todo item
-curl -XPOST "localhost:3000/todos" -d '{"title": "setup api server"}'
-
-# Read
-curl -XGET "localhost:3000/todos/1"
-
-# Update
-curl -XPUT "localhost:3000/todos/1" -d '{"title": "setup api server done"}'
-
-# Delete
-curl -XDELETE "localhost:3000/todos/1"
-```
-
-## Docker image
-
-``` bash
-# connect to mysql
-docker run -p 3000:3000 restgo/rest -db.url "mysql://user:passwd@tcp(host:port)/db"
+# connect to postgres
+docker run -p 3000:3000 restgo/rest -db.url "postgres://user:passwd@localhost:5432/db"
 
 # connect to sqlite file with volume
 docker run -p 3000:3000 -v $(pwd):/data restgo/rest -db.url "sqlite:///data/my.db"
 ```
 
-## Use rest as a Go library
+### Use API
+Assume there is a `todos` table in the database with `id`, `title` fields:
+
+``` bash
+# Create a todo item
+curl -XPOST "localhost:3000/todos" -d '{"title": "setup api server", "done": false}'
+
+# Read
+curl -XGET "localhost:3000/todos/1"
+
+# Update
+curl -XPUT "localhost:3000/todos/1" -d '{"title": "setup api server", "done": true}'
+
+# Delete
+curl -XDELETE "localhost:3000/todos/1"
+```
+
+## Use the binary
+
+### Precompiled binaries
+Precompiled binaries for released versions are available in the [Releases page](https://github.com/rest-go/rest/releases), download it to your local machine and run it directly is the fastest way to using Rest.
+
+### Go install
+If you are familiar with Golang, you can use go install
+``` bash
+go install github.com/rest-go/rest
+```
+
+### Run server
+``` bash
+rest -db.url "mysql://username:password@tcp(localhost:3306)/db"
+```
+
+## Use it as a Go library
 It also works to embed rest server into an existing Go http server
+
+``` bash
+go get github.com/rest-go/rest
+```
 
 ``` go
 package main
