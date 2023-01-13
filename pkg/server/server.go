@@ -280,7 +280,7 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 			Msg:  dbErr.Msg,
 		}
 	}
-	var data any = objects
+
 	if urlQuery.IsSingular() || urlQuery.HasID() {
 		if len(objects) == 0 {
 			return &Response{
@@ -293,20 +293,19 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 				Msg:  fmt.Sprintf("expect singular data, but got %d rows", len(objects)),
 			}
 		}
-		data = objects[0]
+		return objects[0] // return single map[string]any
 	}
-	return data
+	return objects // return  []map[string]any
 }
 
 func (s *Server) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
-	rows, dbErr := sqlx.FetchData(r.Context(), s.db, query)
+	objects, dbErr := sqlx.FetchData(r.Context(), s.db, query)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
 			Msg:  dbErr.Msg,
 		}
 	}
-	data := rows[0].(map[string]any)
-	return data["count"]
+	return objects[0]["count"]
 }

@@ -13,3 +13,15 @@ var tableNameReg = regexp.MustCompile("^[_a-zA-Z][_a-zA-Z0-9]*$")
 func IsValidTableName(tableName string) bool {
 	return tableNameReg.MatchString(tableName)
 }
+
+type Helper interface {
+	GetTablesSQL() string
+	GetColumnsSQL(string) string
+}
+
+var helpers = map[string]Helper{
+	"postgres": PGHelper{},
+	"pgx":      PGHelper{},
+	"mysql":    MyHelper{},
+	"sqlite":   SQLiteHelper{},
+}

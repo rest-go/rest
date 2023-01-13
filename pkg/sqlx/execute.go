@@ -27,7 +27,7 @@ func ExecQuery(ctx context.Context, db *DB, query string, args ...any) (int64, *
 }
 
 // FetchData execute a sql and return matched rows or an error
-func FetchData(ctx context.Context, db *DB, query string, args ...any) ([]any, *Error) {
+func FetchData(ctx context.Context, db *DB, query string, args ...any) ([]map[string]any, *Error) {
 	query = Rebind(db.DriverName, query)
 	log.Printf("fetch data, query: %v, args: %v", query, args)
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
@@ -45,7 +45,7 @@ func FetchData(ctx context.Context, db *DB, query string, args ...any) ([]any, *
 	}
 
 	count := len(columnTypes)
-	objects := []any{}
+	objects := []map[string]any{}
 	for rows.Next() {
 		scanArgs := make([]any, count)
 		converters := make([]TypeConverter, count)

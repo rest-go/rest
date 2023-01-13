@@ -10,7 +10,7 @@ on:
     branches: ["main"]
 env:
   # database provided by github action runner
-  REST_MYSQL_URL: mysql://root:root@tcp(127.0.0.1:3306)/mysql
+  REST_MYSQL_URL: mysql://root:root@tcp(127.0.0.1:3306)/test
   REST_PG_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
 jobs:
@@ -45,6 +45,7 @@ jobs:
         image: mysql
         env:
           MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test
         # Set health checks to wait until postgres has started
         ports:
           - 3306:3306
