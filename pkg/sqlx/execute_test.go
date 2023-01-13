@@ -1,8 +1,7 @@
-package database
+package sqlx
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
@@ -34,7 +33,7 @@ const (
 	`
 )
 
-func setupDB() (*sql.DB, error) {
+func setupDB() (*DB, error) {
 	db, err := Open(testDBURL)
 	if err != nil {
 		return nil, err

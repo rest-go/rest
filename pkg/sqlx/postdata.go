@@ -1,4 +1,4 @@
-package database
+package sqlx
 
 import (
 	"encoding/json"
@@ -30,12 +30,7 @@ type SetQuery struct {
 }
 
 type PostData struct {
-	driver  string
 	objects []map[string]any
-}
-
-func NewPostData(driver string) *PostData {
-	return &PostData{driver: driver}
 }
 
 // UnmarshalJSON implements json.Unmarshaler
@@ -101,7 +96,7 @@ func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 		}
 		// consistent column order with first object
 		for _, c := range columns {
-			valPlaceholder = append(valPlaceholder, placeholder(pd.driver, index))
+			valPlaceholder = append(valPlaceholder, "?")
 			args = append(args, object[c])
 			index++
 		}
@@ -129,7 +124,7 @@ func (pd *PostData) SetQuery(index uint) (*SetQuery, error) {
 		}
 		queryBuilder.WriteString(k)
 		queryBuilder.WriteString(" = ")
-		queryBuilder.WriteString(placeholder(pd.driver, index))
+		queryBuilder.WriteString("?")
 		args = append(args, v)
 		index++
 		first = false

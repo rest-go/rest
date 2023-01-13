@@ -82,26 +82,14 @@ func main() {
 ## Features
 - [x] CRUD
 - [x] Page
-- [x] common operators e.g. eq,lt, gt, is, like
-- [x] common types(int, bool, char, timestamp, decimal)
-- [x] select fileds
+- [x] operators (eq, lt, gt, etc.)
+- [x] select fields
 - [x] order by
 - [x] count
-- [x] debug output sql & args
-- [x] test
-- [ ] security sql
-- [ ] auth(http & jwt)
-- [ ] comment/documentation
-	- [ ] json
-- [x] json (postgres, operations, nested post/get)
-  - [x] quote
-- [x] json (mysql & sqlite)
-- [x] test for different db (github action)
-- [ ] dump
+- [x] json 
 ## Road map
-- [ ] Resource Embedding(one,many)
-- [ ] open api
-- [ ] Logical operators(or, and is already in code)
-- [ ] escape field name
-- [ ] application/x-www-form-urlencoded
-- [ ] web management
+- [ ] Authentication and Authorization
+- [ ] Resource Embedding(one-to-one, one-to-many)
+- [ ] Logical operators(and, or)
+- [ ] Open API
+- [ ] Web UI management

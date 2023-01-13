@@ -1,4 +1,4 @@
-package database
+package sqlx
 
 import (
 	"encoding/json"
@@ -27,7 +27,7 @@ func TestPostDataValuesQuery(t *testing.T) {
 			query: &ValuesQuery{
 				Index:        3,
 				Columns:      []string{"id", "name"},
-				Placeholders: []string{"($1,$2)"},
+				Placeholders: []string{"(?,?)"},
 				Args:         []any{"hello world", float64(1)},
 			},
 		},
@@ -47,15 +47,15 @@ func TestPostDataValuesQuery(t *testing.T) {
 			query: &ValuesQuery{
 				Index:        5,
 				Columns:      []string{"id", "name"},
-				Placeholders: []string{"($1,$2)", "($3,$4)"},
+				Placeholders: []string{"(?,?)", "(?,?)"},
 				Args:         []any{"hello world", float64(1), "rest-go", float64(2)},
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			data := NewPostData("")
-			err := json.Unmarshal(test.data, data)
+			var data PostData
+			err := json.Unmarshal(test.data, &data)
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, test.unmarshalData, data.objects)
 			query, err := data.ValuesQuery()
@@ -68,7 +68,7 @@ func TestPostDataValuesQuery(t *testing.T) {
 	}
 
 	t.Run("inconsistency columns with different name", func(t *testing.T) {
-		data := NewPostData("")
+		var data PostData
 		err := json.Unmarshal([]byte(`[{"name":"hello world", "id":1}, {"name2":"rest-go", "id":2}, {"id":3}]`), &data)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(data.objects))
@@ -77,7 +77,7 @@ func TestPostDataValuesQuery(t *testing.T) {
 	})
 
 	t.Run("inconsistency columns with different length", func(t *testing.T) {
-		data := NewPostData("")
+		var data PostData
 		err := json.Unmarshal([]byte(`[{"name":"hello world", "id":1}, {"id":2}, {"id":3}]`), &data)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(data.objects))
@@ -86,7 +86,7 @@ func TestPostDataValuesQuery(t *testing.T) {
 	})
 
 	t.Run("invalid json format data", func(t *testing.T) {
-		data := NewPostData("")
+		var data PostData
 		err := json.Unmarshal([]byte("1234"), &data)
 		assert.NotNil(t, err)
 		assert.Equal(t, []map[string]interface{}(nil), data.objects)
@@ -112,15 +112,15 @@ func TestPostDataSetQuery(t *testing.T) {
 			},
 			query: &SetQuery{
 				Index: 3,
-				Query: "name = $1, id = $2",
+				Query: "name = ?, id = ?",
 				Args:  []any{"hello world", float64(1)},
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			data := NewPostData("")
-			err := json.Unmarshal(test.data, data)
+			var data PostData
+			err := json.Unmarshal(test.data, &data)
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, test.unmarshalData, data.objects)
 			query, err := data.SetQuery(1)
@@ -137,8 +137,8 @@ func TestPostDataSetQuery(t *testing.T) {
 		})
 	}
 	t.Run("bulk update are not updated", func(t *testing.T) {
-		data := NewPostData("")
-		err := json.Unmarshal([]byte(`[{"name":"hello", "id":1}, {"name":"world", "id":2}]`), data)
+		var data PostData
+		err := json.Unmarshal([]byte(`[{"name":"hello", "id":1}, {"name":"world", "id":2}]`), &data)
 		assert.Nil(t, err)
 		_, err = data.SetQuery(1)
 		assert.NotNil(t, err)

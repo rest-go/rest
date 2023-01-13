@@ -1,4 +1,4 @@
-package database
+package sqlx
 
 import (
 	"fmt"
@@ -15,12 +15,12 @@ var jsonPathFunc = map[string]func(column string) (jsonPath, asName string){
 }
 
 type URLQuery struct {
-	driver string
 	values url.Values
+	driver string
 }
 
-func NewURLQuery(driver string, values url.Values) *URLQuery {
-	return &URLQuery{driver, values}
+func NewURLQuery(values url.Values, driver string) *URLQuery {
+	return &URLQuery{values, driver}
 }
 
 func (q *URLQuery) Set(key, value string) {
@@ -90,14 +90,14 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 			vals := strings.Split(strings.Trim(strings.Trim(val, ")"), "("), ",")
 			placeholders := make([]string, len(vals))
 			for i, v := range vals {
-				placeholders[i] = placeholder(q.driver, index)
+				placeholders[i] = "?"
 				args = append(args, v)
 				index++
 			}
 			queryBuilder.WriteString(fmt.Sprintf(" IN (%s)", strings.Join(placeholders, ",")))
 		} else {
 			queryBuilder.WriteString(operator)
-			queryBuilder.WriteString(placeholder(q.driver, index))
+			queryBuilder.WriteString("?")
 			args = append(args, val)
 			index++
 		}

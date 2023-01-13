@@ -1,14 +1,13 @@
 package server
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 
-	"github.com/rest-go/rest/pkg/database"
+	"github.com/rest-go/rest/pkg/sqlx"
 )
 
 // Response serves a default JSON output when no data fetched from data
@@ -19,20 +18,14 @@ type Response struct {
 
 // Server is the representation of a restful server which handles CRUD requests
 type Server struct {
+	db     *sqlx.DB
 	prefix string
-	driver string
-	db     *sql.DB
 }
 
 // NewServer returns a Server pointer
 func NewServer(url string) *Server {
 	log.Printf("connecting to database: %s", url)
-	parts := strings.SplitN(url, "://", 2)
-	if len(parts) != 2 {
-		log.Fatal(fmt.Errorf("invalid db url: %s", url))
-	}
-	driver := parts[0]
-	db, err := database.Open(url)
+	db, err := sqlx.Open(url)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,7 +35,7 @@ func NewServer(url string) *Server {
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
 
-	return &Server{"", driver, db}
+	return &Server{db: db}
 }
 
 func (s *Server) WithPrefix(prefix string) *Server {
@@ -89,7 +82,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 {
 		table, id = parts[0], parts[1]
 	}
-	if !database.IsValidTableName(table) {
+	if !sqlx.IsValidTableName(table) {
 		res := &Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("invalid table name: %s", table),
@@ -103,7 +96,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if id != "" {
 		values.Set("id", fmt.Sprintf("eq.%s", id))
 	}
-	urlQuery := database.NewURLQuery(s.driver, values)
+	urlQuery := sqlx.NewURLQuery(values, s.db.DriverName)
 	switch r.Method {
 	case "POST":
 		data = s.create(r, table, urlQuery)
@@ -122,9 +115,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.json(w, data)
 }
 
-func (s *Server) create(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
-	data := database.NewPostData(s.driver)
-	err := json.NewDecoder(r.Body).Decode(data)
+func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
+	var data sqlx.PostData
+	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -150,7 +143,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *database.UR
 		return s.debug(query, args...)
 	}
 
-	rows, dbErr := database.ExecQuery(r.Context(), s.db, query, args...)
+	rows, dbErr := sqlx.ExecQuery(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -170,7 +163,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *database.UR
 	}
 }
 
-func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
+func (s *Server) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString("DELETE FROM ")
 	queryBuilder.WriteString(tableName)
@@ -185,7 +178,7 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.UR
 		return s.debug(query, args...)
 	}
 
-	rows, dbErr := database.ExecQuery(r.Context(), s.db, query, args...)
+	rows, dbErr := sqlx.ExecQuery(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -199,8 +192,8 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *database.UR
 	}
 }
 
-func (s *Server) update(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
-	data := database.NewPostData(s.driver)
+func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
+	var data sqlx.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
 		return &Response{
@@ -232,7 +225,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *database.UR
 		return s.debug(query, args...)
 	}
 
-	rows, dbErr := database.ExecQuery(r.Context(), s.db, query, args...)
+	rows, dbErr := sqlx.ExecQuery(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -245,7 +238,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *database.UR
 	}
 }
 
-func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQuery) any {
+func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
 	if urlQuery.IsCount() {
 		return s.count(r, tableName)
 	}
@@ -280,7 +273,7 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQu
 		return s.debug(query, args...)
 	}
 
-	objects, dbErr := database.FetchData(r.Context(), s.db, query, args...)
+	objects, dbErr := sqlx.FetchData(r.Context(), s.db, query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -307,7 +300,7 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *database.URLQu
 
 func (s *Server) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
-	rows, dbErr := database.FetchData(r.Context(), s.db, query)
+	rows, dbErr := sqlx.FetchData(r.Context(), s.db, query)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,

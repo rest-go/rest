@@ -1,4 +1,4 @@
-package database
+package sqlx
 
 import (
 	"os"
@@ -6,11 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestIsValidTableName(t *testing.T) {
-	assert.True(t, IsValidTableName("table"))
-	assert.False(t, IsValidTableName("0table"))
-}
 
 func TestOpen(t *testing.T) {
 	_, err := Open("invalid url")

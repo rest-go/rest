@@ -1,8 +1,7 @@
-package database
+package sqlx
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"time"
 )
@@ -10,7 +9,8 @@ import (
 const DefaultTimeout = 2 * time.Minute
 
 // ExecQuery execute a sql query and return rows affected or an error
-func ExecQuery(ctx context.Context, db *sql.DB, query string, args ...any) (int64, *Error) {
+func ExecQuery(ctx context.Context, db *DB, query string, args ...any) (int64, *Error) {
+	query = Rebind(db.DriverName, query)
 	log.Printf("exec query, query: %v, args: %v", query, args)
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
@@ -27,7 +27,8 @@ func ExecQuery(ctx context.Context, db *sql.DB, query string, args ...any) (int6
 }
 
 // FetchData execute a sql and return matched rows or an error
-func FetchData(ctx context.Context, db *sql.DB, query string, args ...any) ([]any, *Error) {
+func FetchData(ctx context.Context, db *DB, query string, args ...any) ([]any, *Error) {
+	query = Rebind(db.DriverName, query)
 	log.Printf("fetch data, query: %v, args: %v", query, args)
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
