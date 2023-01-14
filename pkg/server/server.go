@@ -16,6 +16,10 @@ type Response struct {
 	Msg  string `json:"msg"`
 }
 
+func newErrResponse(err *sqlx.Error) *Response {
+	return &Response{Code: err.Code, Msg: err.Msg}
+}
+
 // Server is the representation of a restful server which handles CRUD requests
 type Server struct {
 	db     *sqlx.DB
@@ -145,10 +149,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return &Response{
-			Code: dbErr.Code,
-			Msg:  dbErr.Msg,
-		}
+		return newErrResponse(dbErr)
 	}
 	if rows != int64(len(valuesQuery.Placeholders)) {
 		return &Response{
@@ -180,10 +181,7 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return &Response{
-			Code: dbErr.Code,
-			Msg:  dbErr.Msg,
-		}
+		return newErrResponse(dbErr)
 	}
 
 	return &Response{
@@ -227,10 +225,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return &Response{
-			Code: dbErr.Code,
-			Msg:  dbErr.Msg,
-		}
+		return newErrResponse(dbErr)
 	}
 	return &Response{
 		Code: http.StatusOK,
@@ -275,10 +270,7 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 
 	objects, dbErr := s.db.FetchData(r.Context(), query, args...)
 	if dbErr != nil {
-		return &Response{
-			Code: dbErr.Code,
-			Msg:  dbErr.Msg,
-		}
+		return newErrResponse(dbErr)
 	}
 
 	if urlQuery.IsSingular() || urlQuery.HasID() {
@@ -302,10 +294,7 @@ func (s *Server) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
 	objects, dbErr := s.db.FetchData(r.Context(), query)
 	if dbErr != nil {
-		return &Response{
-			Code: dbErr.Code,
-			Msg:  dbErr.Msg,
-		}
+		return newErrResponse(dbErr)
 	}
 	return objects[0]["count"]
 }

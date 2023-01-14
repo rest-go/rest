@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rest-go/rest/pkg/sqlx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -208,4 +209,11 @@ func TestServerCount(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	count = data.(float64)
 	assert.Equal(t, float64(2), count, data)
+}
+
+func TestNewErrResponse(t *testing.T) {
+	err := &sqlx.Error{Code: 1, Msg: "hello"}
+	res := newErrResponse(err)
+	assert.Equal(t, res.Code, err.Code)
+	assert.Equal(t, res.Msg, err.Msg)
 }
