@@ -7,18 +7,9 @@ import (
 	"net/http"
 	"strings"
 
+	j "github.com/rest-go/rest/pkg/jsonutil"
 	"github.com/rest-go/rest/pkg/sqlx"
 )
-
-// Response serves a default JSON output when no data fetched from data
-type Response struct {
-	Code int    `json:"-"` // write to http status code
-	Msg  string `json:"msg"`
-}
-
-func newErrResponse(err *sqlx.Error) *Response {
-	return &Response{Code: err.Code, Msg: err.Msg}
-}
 
 // Server is the representation of a restful server which handles CRUD requests
 type Server struct {
@@ -27,6 +18,7 @@ type Server struct {
 }
 
 // NewServer returns a Server pointer
+// TODO: receive a config
 func NewServer(url string) *Server {
 	log.Printf("connecting to database: %s", url)
 	db, err := sqlx.Open(url)
@@ -56,28 +48,15 @@ func (s *Server) debug(query string, args ...any) any {
 	}
 }
 
-func (s *Server) json(w http.ResponseWriter, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	if res, ok := data.(*Response); ok {
-		w.WriteHeader(res.Code)
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
-
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("failed to encode json data, %v", err)
-	}
-}
-
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, s.prefix)
 	table := strings.Trim(path, "/")
 	if table == "" {
-		res := &Response{
+		res := &j.Response{
 			Code: http.StatusOK,
 			Msg:  "rest server is up and running",
 		}
-		s.json(w, res)
+		j.Encode(w, res)
 		return
 	}
 
@@ -87,11 +66,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		table, id = parts[0], parts[1]
 	}
 	if !sqlx.IsValidTableName(table) {
-		res := &Response{
+		res := &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("invalid table name: %s", table),
 		}
-		s.json(w, res)
+		j.Encode(w, res)
 		return
 	}
 
@@ -111,19 +90,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		data = s.get(r, table, urlQuery)
 	default:
-		data = &Response{
+		data = &j.Response{
 			Code: http.StatusMethodNotAllowed,
 			Msg:  fmt.Sprintf("method not supported: %s", r.Method),
 		}
 	}
-	s.json(w, data)
+	j.Encode(w, data)
 }
 
 func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
 	var data sqlx.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
-		return &Response{
+		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to parse post json data, %v", err),
 		}
@@ -131,7 +110,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	valuesQuery, err := data.ValuesQuery()
 	if err != nil {
-		return &Response{
+		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to prepare values query, %v", err),
 		}
@@ -149,16 +128,16 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return newErrResponse(dbErr)
+		return j.SQLErrResponse(dbErr)
 	}
 	if rows != int64(len(valuesQuery.Placeholders)) {
-		return &Response{
+		return &j.Response{
 			Code: http.StatusInternalServerError,
 			Msg:  fmt.Sprintf("expected to insert %d rows, but affected %d rows", len(valuesQuery.Placeholders), rows),
 		}
 	}
 
-	return &Response{
+	return &j.Response{
 		Code: http.StatusOK,
 		Msg:  fmt.Sprintf("successfully inserted %d rows", rows),
 	}
@@ -181,10 +160,10 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return newErrResponse(dbErr)
+		return j.SQLErrResponse(dbErr)
 	}
 
-	return &Response{
+	return &j.Response{
 		Code: http.StatusOK,
 		Msg:  fmt.Sprintf("successfully deleted %d rows", rows),
 	}
@@ -194,14 +173,14 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 	var data sqlx.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
-		return &Response{
+		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to parse update json data, %v", err),
 		}
 	}
 	setQuery, err := data.SetQuery(1)
 	if err != nil {
-		return &Response{
+		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to prepare set query, %v", err),
 		}
@@ -225,9 +204,9 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return newErrResponse(dbErr)
+		return j.SQLErrResponse(dbErr)
 	}
-	return &Response{
+	return &j.Response{
 		Code: http.StatusOK,
 		Msg:  fmt.Sprintf("successfully updated %d rows", rows),
 	}
@@ -270,17 +249,17 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 
 	objects, dbErr := s.db.FetchData(r.Context(), query, args...)
 	if dbErr != nil {
-		return newErrResponse(dbErr)
+		return j.SQLErrResponse(dbErr)
 	}
 
 	if urlQuery.IsSingular() || urlQuery.HasID() {
 		if len(objects) == 0 {
-			return &Response{
+			return &j.Response{
 				Code: http.StatusNotFound,
 				Msg:  "query data not found in database",
 			}
 		} else if len(objects) > 1 {
-			return &Response{
+			return &j.Response{
 				Code: http.StatusBadRequest,
 				Msg:  fmt.Sprintf("expect singular data, but got %d rows", len(objects)),
 			}
@@ -294,7 +273,7 @@ func (s *Server) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
 	objects, dbErr := s.db.FetchData(r.Context(), query)
 	if dbErr != nil {
-		return newErrResponse(dbErr)
+		return j.SQLErrResponse(dbErr)
 	}
 	return objects[0]["count"]
 }
