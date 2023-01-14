@@ -1,8 +1,10 @@
 package sqlx
 
 import (
+	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -72,4 +74,34 @@ func TestDBTables(t *testing.T) {
 		assert.Equal(t, "Id", columns[0].ColumnName)
 		assert.Equal(t, "INTEGER", columns[0].DataType)
 	})
+}
+
+func TestDBExec(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	query := "UPDATE customers SET Name=$1 WHERE id=$2"
+	args := []any{"another name", 1}
+
+	rows, err := db.ExecQuery(ctx, query, args...)
+	assert.Equal(t, int64(1), rows)
+	assert.Nil(t, err)
+}
+
+func TestDBFetch(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	query := "SELECT * FROM customers WHERE id=$1"
+	args := []any{1}
+	objects, err := db.FetchData(ctx, query, args...)
+	assert.Equal(t, 1, len(objects))
+	assert.Nil(t, err)
 }

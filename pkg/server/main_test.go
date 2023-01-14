@@ -12,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/rest-go/rest/pkg/sqlx"
 )
 
 const (
@@ -56,7 +54,7 @@ func TestMain(m *testing.M) {
 func setupData() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if _, err := sqlx.ExecQuery(ctx, testServer.db, setupSQL); err != nil {
+	if _, err := testServer.db.ExecQuery(ctx, setupSQL); err != nil {
 		return err
 	}
 	body := strings.NewReader(`{

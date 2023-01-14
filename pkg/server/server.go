@@ -143,7 +143,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 		return s.debug(query, args...)
 	}
 
-	rows, dbErr := sqlx.ExecQuery(r.Context(), s.db, query, args...)
+	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -178,7 +178,7 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 		return s.debug(query, args...)
 	}
 
-	rows, dbErr := sqlx.ExecQuery(r.Context(), s.db, query, args...)
+	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -225,7 +225,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 		return s.debug(query, args...)
 	}
 
-	rows, dbErr := sqlx.ExecQuery(r.Context(), s.db, query, args...)
+	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -273,7 +273,7 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 		return s.debug(query, args...)
 	}
 
-	objects, dbErr := sqlx.FetchData(r.Context(), s.db, query, args...)
+	objects, dbErr := s.db.FetchData(r.Context(), query, args...)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
@@ -300,7 +300,7 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 
 func (s *Server) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
-	objects, dbErr := sqlx.FetchData(r.Context(), s.db, query)
+	objects, dbErr := s.db.FetchData(r.Context(), query)
 	if dbErr != nil {
 		return &Response{
 			Code: dbErr.Code,
