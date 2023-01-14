@@ -2,3 +2,5 @@ addr: :3000
 db:
   url: sqlite://chinook.db
   limited_tables:
+auth:
+  enabled: true

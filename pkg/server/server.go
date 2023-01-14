@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/rest-go/auth"
 	j "github.com/rest-go/rest/pkg/jsonutil"
 	"github.com/rest-go/rest/pkg/sqlx"
 )
@@ -14,14 +15,13 @@ import (
 // Server is the representation of a restful server which handles CRUD requests
 type Server struct {
 	db     *sqlx.DB
-	prefix string
+	config *Config
 }
 
 // NewServer returns a Server pointer
-// TODO: receive a config
-func NewServer(url string) *Server {
-	log.Printf("connecting to database: %s", url)
-	db, err := sqlx.Open(url)
+func NewServer(config *Config) *Server {
+	log.Printf("start server with config %v", config)
+	db, err := sqlx.Open(config.DB.URL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,12 +31,7 @@ func NewServer(url string) *Server {
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
 
-	return &Server{db: db}
-}
-
-func (s *Server) WithPrefix(prefix string) *Server {
-	s.prefix = prefix
-	return s
+	return &Server{db: db, config: config}
 }
 
 func (s *Server) debug(query string, args ...any) any {
@@ -49,8 +44,13 @@ func (s *Server) debug(query string, args ...any) any {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, s.prefix)
-	table := strings.Trim(path, "/")
+	path := strings.TrimPrefix(r.URL.Path, s.config.Prefix)
+	if s.config.Auth.Enabled && strings.HasPrefix(path, "/auth") {
+		auth.New(s.db, s.config.Auth.Secret).Handler(w, r)
+		return
+	}
+
+	table := strings.TrimPrefix(path, "/")
 	if table == "" {
 		res := &j.Response{
 			Code: http.StatusOK,

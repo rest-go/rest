@@ -44,7 +44,7 @@ CREATE INDEX [IFK_InvoiceCustomerId] ON "invoices" ([CustomerId]);
 var testServer *Server
 
 func TestMain(m *testing.M) {
-	testServer = NewServer("sqlite://ci.db")
+	testServer = NewServer(&Config{DB: DBConfig{URL: "sqlite://ci.db"}})
 	if err := setupData(); err != nil {
 		log.Fatal("setupData error: ", err)
 	}

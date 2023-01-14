@@ -15,12 +15,6 @@ func TestServer(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, code)
 
-		testServer.WithPrefix("/admin")
-		code, _, err = request(http.MethodGet, "/admin", nil)
-		assert.Nil(t, err)
-		assert.Equal(t, http.StatusOK, code)
-
-		testServer.WithPrefix("")
 		code, data, err := request(http.MethodGet, "/customers", nil)
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, code)

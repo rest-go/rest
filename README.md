@@ -71,10 +71,8 @@ import (
 )
 
 func main() {
-	s := server.NewServer("sqlite://my.db")
-	http.Handle("/", s)
-	// or with prefix
-	// http.Handle("/admin", s.WithPrefix("/admin"))
+	s := server.NewServer(server.Config{Prefix: "/admin", DB: server.DBConfig{URL: "sqlite://ci.db"}})
+	http.Handle("/admin", s)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 ```

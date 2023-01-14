@@ -4,8 +4,11 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/rest-go/auth"
 	"github.com/rest-go/rest/pkg/server"
+	"github.com/rest-go/rest/pkg/sqlx"
 )
 
 func parseFlags() *Config {
@@ -32,9 +35,33 @@ func parseFlags() *Config {
 	return cfg
 }
 
+func setupAuth() {
+	authFlags := flag.NewFlagSet("foo", flag.ExitOnError)
+	url := authFlags.String("db.url", "", "db url")
+	if err := authFlags.Parse(os.Args[3:]); err != nil {
+		log.Fatal("failed to parse flags", err)
+	}
+	if *url == "" {
+		log.Fatal("db url is required to setup auth tables")
+	}
+	db, err := sqlx.Open(*url)
+	if err != nil {
+		log.Fatal("can't open db url, ", *url, err)
+	}
+	if err = auth.New(db, "").Setup(); err != nil {
+		log.Fatal("setup auth error ", err)
+	}
+}
+
 func main() {
+	if len(os.Args) >= 3 {
+		if os.Args[1] == "auth" && os.Args[2] == "setup" {
+			setupAuth()
+			return
+		}
+	}
 	cfg := parseFlags()
-	s := server.NewServer(cfg.DB.URL)
+	s := server.NewServer(&server.Config{DB: cfg.DB, Auth: cfg.Auth})
 	log.Print("listen on addr: ", cfg.Addr)
 	log.Fatal(http.ListenAndServe(cfg.Addr, s)) //nolint:gosec // not handled for now
 }

@@ -47,6 +47,7 @@ func (t Table) String() string {
 // handle generic logic against different SQL database
 type DB struct {
 	*sql.DB
+	URL        string
 	DriverName string
 }
 
@@ -54,11 +55,12 @@ type DB struct {
 func Open(url string) (*DB, error) {
 	parts := strings.SplitN(url, "://", 2)
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid db url: %s", url)
+		return nil, fmt.Errorf("invalid db url, no driver: %s", url)
 	}
 
-	driver, dsn := parts[0], parts[1]
-	if driver == "postgres" {
+	driverName, dsn := parts[0], parts[1]
+	driver := driverName
+	if driverName == "postgres" {
 		driver = "pgx"
 		dsn = url
 	}
@@ -66,7 +68,7 @@ func Open(url string) (*DB, error) {
 	if err == nil {
 		err = db.Ping()
 	}
-	return &DB{db, driver}, err
+	return &DB{db, url, driverName}, err
 }
 
 // Tables return all the tables in current database along with all the columns
