@@ -1,3 +1,4 @@
+// package handler provide RESTFul interfaces for all database tables
 package handler
 
 import (
@@ -13,7 +14,7 @@ import (
 	"github.com/rest-go/rest/pkg/sqlx"
 )
 
-// Handler is the representation of a restful handler which handles CRUD requests
+// Handler is the representation of a restful server which handles CRUD requests
 type Handler struct {
 	db     *sqlx.DB
 	prefix string
@@ -57,6 +58,7 @@ func (h *Handler) updateMeta() {
 	}()
 }
 
+// WithPrefix set a prefix which will be trim automatically
 func (h *Handler) WithPrefix(prefix string) *Handler {
 	h.prefix = prefix
 	return h

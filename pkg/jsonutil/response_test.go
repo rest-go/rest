@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEncode(t *testing.T) {
+func TestWrite(t *testing.T) {
 	rr := httptest.NewRecorder()
 	res := &Response{Code: http.StatusBadGateway, Msg: "bad gateway"}
 	Write(rr, res)

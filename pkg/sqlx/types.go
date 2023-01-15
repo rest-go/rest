@@ -2,7 +2,6 @@ package sqlx
 
 import (
 	"database/sql"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -135,7 +134,6 @@ func getTypeAndConverter(t string) (any, TypeConverter) {
 		}
 	}
 
-	log.Printf("unrecognized type: %s, using JSON type to guess", t)
 	return Types["JSON"](), TypeConverters["JSON"]
 }
 

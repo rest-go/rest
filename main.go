@@ -4,7 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"os"
+	"time"
 
 	"github.com/rest-go/auth"
 	"github.com/rest-go/rest/pkg/handler"
@@ -34,31 +34,7 @@ func parseFlags() *Config {
 	return cfg
 }
 
-func setupAuth() {
-	authFlags := flag.NewFlagSet("foo", flag.ExitOnError)
-	url := authFlags.String("db.url", "", "db url")
-	if err := authFlags.Parse(os.Args[3:]); err != nil {
-		log.Fatal("failed to parse flags", err)
-	}
-	if *url == "" {
-		log.Fatal("db url is required to setup auth tables")
-	}
-	restAuth, err := auth.New(*url, []byte(""))
-	if err != nil {
-		log.Fatal("initialize auth error ", err)
-	}
-	if err = restAuth.Setup(); err != nil {
-		log.Fatal("setup auth error ", err)
-	}
-}
-
 func main() {
-	if len(os.Args) >= 3 {
-		if os.Args[1] == "auth" && os.Args[2] == "setup" {
-			setupAuth()
-			return
-		}
-	}
 	cfg := parseFlags()
 	restHandler := handler.New(&cfg.DB)
 	if cfg.Auth.Enabled {
@@ -74,5 +50,9 @@ func main() {
 	}
 
 	log.Print("listen on addr: ", cfg.Addr)
-	log.Fatal(http.ListenAndServe(cfg.Addr, nil)) //nolint:gosec // not handled for now
+	server := &http.Server{
+		Addr:              cfg.Addr,
+		ReadHeaderTimeout: 3 * time.Second,
+	}
+	log.Fatal(server.ListenAndServe())
 }
