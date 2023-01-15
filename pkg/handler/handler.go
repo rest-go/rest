@@ -144,7 +144,7 @@ func (h *Handler) create(r *http.Request, tableName string, urlQuery *sqlx.URLQu
 
 	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return j.SQLErrResponse(dbErr)
+		return j.ErrResponse(dbErr)
 	}
 	if rows != int64(len(valuesQuery.Placeholders)) {
 		return &j.Response{
@@ -176,7 +176,7 @@ func (h *Handler) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQu
 
 	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return j.SQLErrResponse(dbErr)
+		return j.ErrResponse(dbErr)
 	}
 
 	return &j.Response{
@@ -220,7 +220,7 @@ func (h *Handler) update(r *http.Request, tableName string, urlQuery *sqlx.URLQu
 
 	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
-		return j.SQLErrResponse(dbErr)
+		return j.ErrResponse(dbErr)
 	}
 	return &j.Response{
 		Code: http.StatusOK,
@@ -265,7 +265,7 @@ func (h *Handler) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery
 
 	objects, dbErr := h.db.FetchData(r.Context(), query, args...)
 	if dbErr != nil {
-		return j.SQLErrResponse(dbErr)
+		return j.ErrResponse(dbErr)
 	}
 
 	if urlQuery.IsSingular() || urlQuery.HasID() {
@@ -289,7 +289,7 @@ func (h *Handler) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
 	objects, dbErr := h.db.FetchData(r.Context(), query)
 	if dbErr != nil {
-		return j.SQLErrResponse(dbErr)
+		return j.ErrResponse(dbErr)
 	}
 	return objects[0]["count"]
 }

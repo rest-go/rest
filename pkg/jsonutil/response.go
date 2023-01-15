@@ -30,7 +30,7 @@ func Write(w http.ResponseWriter, data any) {
 	}
 }
 
-func SQLErrResponse(err error) *Response {
+func ErrResponse(err error) *Response {
 	var dbErr sqlx.Error
 	if errors.As(err, &dbErr) {
 		return &Response{Code: dbErr.Code, Msg: dbErr.Msg}

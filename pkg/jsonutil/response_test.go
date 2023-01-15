@@ -18,7 +18,7 @@ func TestWrite(t *testing.T) {
 }
 func TestNewErrResponse(t *testing.T) {
 	err := sqlx.Error{Code: 1, Msg: "hello"}
-	res := SQLErrResponse(err)
+	res := ErrResponse(err)
 	assert.Equal(t, res.Code, err.Code)
 	assert.Equal(t, res.Msg, err.Msg)
 }
