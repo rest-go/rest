@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rest-go/auth"
 	j "github.com/rest-go/rest/pkg/jsonutil"
@@ -16,6 +18,9 @@ import (
 type Server struct {
 	db     *sqlx.DB
 	config *Config
+
+	tablesMu sync.RWMutex
+	tables   map[string]sqlx.Table
 }
 
 // NewServer returns a Server pointer
@@ -30,8 +35,38 @@ func NewServer(config *Config) *Server {
 	db.SetConnMaxLifetime(0)
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
+	s := &Server{db: db, config: config}
+	s.updateMeta()
+	return s
+}
 
-	return &Server{db: db, config: config}
+func (s *Server) updateMeta() {
+	updateTask := func() {
+		log.Println("update database meta")
+		tables := s.db.Tables()
+		s.tablesMu.Lock()
+		s.tables = tables
+		s.tablesMu.Unlock()
+	}
+	updateTask()
+	go func() {
+		interval := 30 * time.Second
+		ticker := time.NewTicker(interval)
+		for range ticker.C {
+			updateTask()
+		}
+	}()
+}
+
+func (s *Server) Tables() map[string]sqlx.Table {
+	s.tablesMu.RLock()
+	defer s.tablesMu.RUnlock()
+	return s.tables
+}
+
+func (s *Server) isValidTable(tableName string) bool {
+	_, ok := s.Tables()[tableName]
+	return ok
 }
 
 func (s *Server) debug(query string, args ...any) any {
@@ -46,7 +81,7 @@ func (s *Server) debug(query string, args ...any) any {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, s.config.Prefix)
 	if s.config.Auth.Enabled && strings.HasPrefix(path, "/auth") {
-		auth.New(s.db, s.config.Auth.Secret).Handler(w, r)
+		auth.New(s.db, s.config.Auth.Secret).ServeHTTP(w, r)
 		return
 	}
 
@@ -56,7 +91,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Code: http.StatusOK,
 			Msg:  "rest server is up and running",
 		}
-		j.Encode(w, res)
+		j.Write(w, res)
 		return
 	}
 
@@ -65,12 +100,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 {
 		table, id = parts[0], parts[1]
 	}
-	if !sqlx.IsValidTableName(table) {
+	if !s.isValidTable(table) {
 		res := &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("invalid table name: %s", table),
 		}
-		j.Encode(w, res)
+		j.Write(w, res)
 		return
 	}
 
@@ -95,7 +130,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Msg:  fmt.Sprintf("method not supported: %s", r.Method),
 		}
 	}
-	j.Encode(w, data)
+	j.Write(w, data)
 }
 
 func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {

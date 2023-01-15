@@ -11,7 +11,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 )
 
 const (
@@ -45,18 +44,20 @@ var testServer *Server
 
 func TestMain(m *testing.M) {
 	testServer = NewServer(&Config{DB: DBConfig{URL: "sqlite://ci.db"}})
-	if err := setupData(); err != nil {
-		log.Fatal("setupData error: ", err)
+	if _, err := testServer.db.ExecQuery(context.Background(), setupSQL); err != nil {
+		log.Fatal(err)
 	}
-	os.Exit(m.Run())
+
+	// reinitialize server to get latest meta data
+	testServer = NewServer(&Config{DB: DBConfig{URL: "sqlite://ci.db"}})
+	if err := setupData(); err != nil {
+		log.Fatal(err)
+	}
+	code := m.Run()
+	os.Exit(code)
 }
 
 func setupData() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if _, err := testServer.db.ExecQuery(ctx, setupSQL); err != nil {
-		return err
-	}
 	body := strings.NewReader(`{
 		"Id": 1,
 		"FirstName": "first name",

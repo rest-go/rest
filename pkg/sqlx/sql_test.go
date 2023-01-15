@@ -68,8 +68,8 @@ func TestDBTables(t *testing.T) {
 		assert.Nil(t, err)
 		tables := db.Tables()
 		assert.Equal(t, 1, len(tables))
-		t.Log("get table: ", tables[0])
-		columns := tables[0].Columns
+		t.Log("get table: ", tables)
+		columns := tables["customers"].Columns
 		assert.Equal(t, 13, len(columns))
 		assert.Equal(t, "Id", columns[0].ColumnName)
 		assert.Equal(t, "INTEGER", columns[0].DataType)

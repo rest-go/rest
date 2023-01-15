@@ -11,8 +11,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
+)
+
+type DriverType int
+
+const (
+	Postgres DriverType = iota
+	MySQL
+	SQLite
 )
 
 // DefaultTimeout for all database operations
@@ -47,8 +56,11 @@ func (t Table) String() string {
 // handle generic logic against different SQL database
 type DB struct {
 	*sql.DB
-	URL        string
 	DriverName string
+}
+
+func New(db *sql.DB, driverName string) *DB {
+	return &DB{db, driverName}
 }
 
 // Open connects to database by specify database url and ping it
@@ -64,16 +76,24 @@ func Open(url string) (*DB, error) {
 		driver = "pgx"
 		dsn = url
 	}
+	if driver == "sqlite" {
+		// increase busy timeout to avoid database lock in concurrent goroutine
+		// https://www.sqlite.org/c3ref/busy_timeout.html
+		// https://github.com/mattn/go-sqlite3/issues/274#issuecomment-232942571
+		if !strings.Contains(dsn, "busy_timeout") {
+			dsn += "?_pragma=busy_timeout(5000)"
+		}
+	}
 	db, err := sql.Open(driver, dsn)
 	if err == nil {
 		err = db.Ping()
 	}
-	return &DB{db, url, driverName}, err
+	return &DB{db, driverName}, err
 }
 
 // Tables return all the tables in current database along with all the columns
 // name and datatype
-func (db *DB) Tables() []Table {
+func (db *DB) Tables() map[string]Table {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
@@ -83,7 +103,7 @@ func (db *DB) Tables() []Table {
 	if err != nil {
 		log.Print("fetch tables error: ", err)
 	}
-	tables := make([]Table, 0, len(rows))
+	tables := make(map[string]Table, len(rows))
 	for _, row := range rows {
 		tableName := row["name"].(string)
 
@@ -115,14 +135,14 @@ func (db *DB) Tables() []Table {
 			continue
 		}
 
-		tables = append(tables, Table{tableName, columns})
+		tables[tableName] = Table{tableName, columns}
 	}
 
 	return tables
 }
 
 // ExecQuery execute and query in database and return rows affected or an error
-func (db *DB) ExecQuery(ctx context.Context, query string, args ...any) (int64, *Error) {
+func (db *DB) ExecQuery(ctx context.Context, query string, args ...any) (int64, error) {
 	query = Rebind(db.DriverName, query)
 	log.Printf("exec query, query: %v, args: %v", query, args)
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
@@ -130,18 +150,18 @@ func (db *DB) ExecQuery(ctx context.Context, query string, args ...any) (int64, 
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return 0, NewError("failed to exec sql", err)
+		return 0, convertError("failed to exec sql", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, NewError("rows affected error", err)
+		return 0, convertError("rows affected error", err)
 	}
 	return rows, nil
 }
 
 // FetchData execute query and fetch data from database, it always return an array
 // or error
-func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[string]any, *Error) {
+func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[string]any, error) {
 	query = Rebind(db.DriverName, query)
 	log.Printf("fetch data, query: %v, args: %v", query, args)
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
@@ -149,13 +169,13 @@ func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[s
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, NewError("failed to run query", err)
+		return nil, convertError("failed to run query", err)
 	}
 	defer rows.Close()
 
 	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
-		return nil, NewError("failed to get columns from database", err)
+		return nil, convertError("failed to get columns from database", err)
 	}
 
 	count := len(columnTypes)
@@ -170,7 +190,7 @@ func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[s
 		}
 		err = rows.Scan(scanArgs...)
 		if err != nil {
-			return nil, NewError("failed to scan data from database", err)
+			return nil, convertError("failed to scan data from database", err)
 		}
 
 		object := make(map[string]any, count)
@@ -180,7 +200,23 @@ func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[s
 		objects = append(objects, object)
 	}
 	if err = rows.Err(); err != nil {
-		return nil, NewError("failed to fetch rows from database", err)
+		return nil, convertError("failed to fetch rows from database", err)
 	}
 	return objects, nil
+}
+
+// FetchOne execute query and fetch data from database, it returns one row or error
+func (db *DB) FetchOne(ctx context.Context, query string, args ...any) (map[string]any, error) {
+	objects, err := db.FetchData(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(objects) == 0 {
+		return nil, NewError(http.StatusNotFound, "data not found in database")
+	} else if len(objects) > 1 {
+		return nil, NewError(http.StatusBadRequest, "multiple rows found in database")
+	}
+
+	return objects[0], nil
 }

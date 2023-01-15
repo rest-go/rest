@@ -37,7 +37,11 @@ func (e Error) Error() string {
 	return e.Msg
 }
 
-func NewError(hint string, err error) *Error {
+func NewError(code int, msg string) Error {
+	return Error{code, msg}
+}
+
+func convertError(hint string, err error) Error {
 	code := http.StatusInternalServerError
 	msg := err.Error()
 
@@ -56,7 +60,7 @@ func NewError(hint string, err error) *Error {
 		code = sqliteErrCodeToHTTPCode(sqliteError.Code())
 	}
 
-	return &Error{
+	return Error{
 		Code: code,
 		Msg:  fmt.Sprintf("%s, %s", hint, msg),
 	}

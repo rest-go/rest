@@ -4,6 +4,7 @@ package jsonutil
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -16,7 +17,7 @@ type Response struct {
 	Msg  string `json:"msg"`
 }
 
-func Encode(w http.ResponseWriter, data any) {
+func Write(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	if res, ok := data.(*Response); ok {
 		w.WriteHeader(res.Code)
@@ -29,6 +30,10 @@ func Encode(w http.ResponseWriter, data any) {
 	}
 }
 
-func SQLErrResponse(err *sqlx.Error) *Response {
-	return &Response{Code: err.Code, Msg: err.Msg}
+func SQLErrResponse(err error) *Response {
+	var dbErr sqlx.Error
+	if errors.As(err, &dbErr) {
+		return &Response{Code: dbErr.Code, Msg: dbErr.Msg}
+	}
+	return &Response{Code: http.StatusInternalServerError, Msg: err.Error()}
 }

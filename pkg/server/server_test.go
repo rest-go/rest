@@ -22,7 +22,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("invalid table", func(t *testing.T) {
-		code, _, err := request(http.MethodGet, "/0invalid_table_name", nil)
+		code, _, err := request(http.MethodGet, "/invalid_table_name", nil)
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusBadRequest, code)
 	})
@@ -202,4 +202,8 @@ func TestServerCount(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	count = data.(float64)
 	assert.Equal(t, float64(2), count, data)
+}
+
+func TestServerAuth(t *testing.T) {
+
 }
