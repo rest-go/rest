@@ -7,8 +7,7 @@ import (
 	"os"
 
 	"github.com/rest-go/auth"
-	"github.com/rest-go/rest/pkg/server"
-	"github.com/rest-go/rest/pkg/sqlx"
+	"github.com/rest-go/rest/pkg/handler"
 )
 
 func parseFlags() *Config {
@@ -44,11 +43,11 @@ func setupAuth() {
 	if *url == "" {
 		log.Fatal("db url is required to setup auth tables")
 	}
-	db, err := sqlx.Open(*url)
+	restAuth, err := auth.New(*url, []byte(""))
 	if err != nil {
-		log.Fatal("can't open db url, ", *url, err)
+		log.Fatal("initialize auth error ", err)
 	}
-	if err = auth.New(db, "").Setup(); err != nil {
+	if err = restAuth.Setup(); err != nil {
 		log.Fatal("setup auth error ", err)
 	}
 }
@@ -61,7 +60,19 @@ func main() {
 		}
 	}
 	cfg := parseFlags()
-	s := server.NewServer(&server.Config{DB: cfg.DB, Auth: cfg.Auth})
+	restHandler := handler.New(&cfg.DB)
+	if cfg.Auth.Enabled {
+		log.Print("auth is enabled")
+		restAuth, err := auth.New(cfg.DB.URL, []byte(cfg.Auth.Secret))
+		if err != nil {
+			log.Fatal("initialize auth error ", err)
+		}
+		http.Handle("/auth/", restAuth)
+		http.Handle("/", restAuth.Middleware(restHandler))
+	} else {
+		http.Handle("/", restHandler)
+	}
+
 	log.Print("listen on addr: ", cfg.Addr)
-	log.Fatal(http.ListenAndServe(cfg.Addr, s)) //nolint:gosec // not handled for now
+	log.Fatal(http.ListenAndServe(cfg.Addr, nil)) //nolint:gosec // not handled for now
 }

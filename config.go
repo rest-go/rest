@@ -3,14 +3,14 @@ package main
 import (
 	"os"
 
-	"github.com/rest-go/rest/pkg/server"
+	"github.com/rest-go/rest/pkg/handler"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
 	Addr string
-	DB   server.DBConfig
-	Auth server.AuthConfig
+	DB   handler.DBConfig
+	Auth handler.AuthConfig
 }
 
 func NewConfig(configPath string) (*Config, error) {

@@ -1,4 +1,4 @@
-package server
+package handler
 
 import (
 	"encoding/json"
@@ -9,24 +9,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rest-go/auth"
 	j "github.com/rest-go/rest/pkg/jsonutil"
 	"github.com/rest-go/rest/pkg/sqlx"
 )
 
-// Server is the representation of a restful server which handles CRUD requests
-type Server struct {
+// Handler is the representation of a restful handler which handles CRUD requests
+type Handler struct {
 	db     *sqlx.DB
-	config *Config
+	prefix string
 
 	tablesMu sync.RWMutex
 	tables   map[string]sqlx.Table
 }
 
-// NewServer returns a Server pointer
-func NewServer(config *Config) *Server {
-	log.Printf("start server with config %v", config)
-	db, err := sqlx.Open(config.DB.URL)
+// New returns a Handler pointer
+func New(dbConfig *DBConfig) *Handler {
+	log.Printf("start server with config %v", dbConfig)
+	db, err := sqlx.Open(dbConfig.URL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,18 +34,18 @@ func NewServer(config *Config) *Server {
 	db.SetConnMaxLifetime(0)
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
-	s := &Server{db: db, config: config}
-	s.updateMeta()
-	return s
+	h := &Handler{db: db}
+	h.updateMeta()
+	return h
 }
 
-func (s *Server) updateMeta() {
+func (h *Handler) updateMeta() {
 	updateTask := func() {
 		log.Println("update database meta")
-		tables := s.db.Tables()
-		s.tablesMu.Lock()
-		s.tables = tables
-		s.tablesMu.Unlock()
+		tables := h.db.Tables()
+		h.tablesMu.Lock()
+		h.tables = tables
+		h.tablesMu.Unlock()
 	}
 	updateTask()
 	go func() {
@@ -58,33 +57,13 @@ func (s *Server) updateMeta() {
 	}()
 }
 
-func (s *Server) Tables() map[string]sqlx.Table {
-	s.tablesMu.RLock()
-	defer s.tablesMu.RUnlock()
-	return s.tables
+func (h *Handler) WithPrefix(prefix string) *Handler {
+	h.prefix = prefix
+	return h
 }
 
-func (s *Server) isValidTable(tableName string) bool {
-	_, ok := s.Tables()[tableName]
-	return ok
-}
-
-func (s *Server) debug(query string, args ...any) any {
-	return &struct {
-		Query string `json:"query"`
-		Args  []any  `json:"args"`
-	}{
-		query, args,
-	}
-}
-
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, s.config.Prefix)
-	if s.config.Auth.Enabled && strings.HasPrefix(path, "/auth") {
-		auth.New(s.db, s.config.Auth.Secret).ServeHTTP(w, r)
-		return
-	}
-
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, h.prefix)
 	table := strings.TrimPrefix(path, "/")
 	if table == "" {
 		res := &j.Response{
@@ -100,7 +79,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 {
 		table, id = parts[0], parts[1]
 	}
-	if !s.isValidTable(table) {
+	if !h.isValidTable(table) {
 		res := &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("invalid table name: %s", table),
@@ -114,16 +93,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if id != "" {
 		values.Set("id", fmt.Sprintf("eq.%s", id))
 	}
-	urlQuery := sqlx.NewURLQuery(values, s.db.DriverName)
+	urlQuery := sqlx.NewURLQuery(values, h.db.DriverName)
 	switch r.Method {
 	case "POST":
-		data = s.create(r, table, urlQuery)
+		data = h.create(r, table, urlQuery)
 	case "DELETE":
-		data = s.delete(r, table, urlQuery)
+		data = h.delete(r, table, urlQuery)
 	case "PUT", "PATCH":
-		data = s.update(r, table, urlQuery)
+		data = h.update(r, table, urlQuery)
 	case "GET":
-		data = s.get(r, table, urlQuery)
+		data = h.get(r, table, urlQuery)
 	default:
 		data = &j.Response{
 			Code: http.StatusMethodNotAllowed,
@@ -133,7 +112,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	j.Write(w, data)
 }
 
-func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
+func (h *Handler) create(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
 	var data sqlx.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -158,10 +137,10 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 		strings.Join(valuesQuery.Placeholders, ","))
 	args := valuesQuery.Args
 	if urlQuery.IsDebug() {
-		return s.debug(query, args...)
+		return h.debug(query, args...)
 	}
 
-	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
+	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		return j.SQLErrResponse(dbErr)
 	}
@@ -178,7 +157,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 	}
 }
 
-func (s *Server) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
+func (h *Handler) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString("DELETE FROM ")
 	queryBuilder.WriteString(tableName)
@@ -190,10 +169,10 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	query := queryBuilder.String()
 	if urlQuery.IsDebug() {
-		return s.debug(query, args...)
+		return h.debug(query, args...)
 	}
 
-	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
+	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		return j.SQLErrResponse(dbErr)
 	}
@@ -204,7 +183,7 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 	}
 }
 
-func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
+func (h *Handler) update(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
 	var data sqlx.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -234,10 +213,10 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 
 	query := queryBuilder.String()
 	if urlQuery.IsDebug() {
-		return s.debug(query, args...)
+		return h.debug(query, args...)
 	}
 
-	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
+	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		return j.SQLErrResponse(dbErr)
 	}
@@ -247,9 +226,9 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sqlx.URLQue
 	}
 }
 
-func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
+func (h *Handler) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery) any {
 	if urlQuery.IsCount() {
-		return s.count(r, tableName)
+		return h.count(r, tableName)
 	}
 
 	var queryBuilder strings.Builder
@@ -279,10 +258,10 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 
 	query := queryBuilder.String()
 	if urlQuery.IsDebug() {
-		return s.debug(query, args...)
+		return h.debug(query, args...)
 	}
 
-	objects, dbErr := s.db.FetchData(r.Context(), query, args...)
+	objects, dbErr := h.db.FetchData(r.Context(), query, args...)
 	if dbErr != nil {
 		return j.SQLErrResponse(dbErr)
 	}
@@ -304,11 +283,31 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sqlx.URLQuery)
 	return objects // return  []map[string]any
 }
 
-func (s *Server) count(r *http.Request, tableName string) any {
+func (h *Handler) count(r *http.Request, tableName string) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
-	objects, dbErr := s.db.FetchData(r.Context(), query)
+	objects, dbErr := h.db.FetchData(r.Context(), query)
 	if dbErr != nil {
 		return j.SQLErrResponse(dbErr)
 	}
 	return objects[0]["count"]
+}
+
+func (h *Handler) debug(query string, args ...any) any {
+	return &struct {
+		Query string `json:"query"`
+		Args  []any  `json:"args"`
+	}{
+		query, args,
+	}
+}
+
+func (h *Handler) getTables() map[string]sqlx.Table {
+	h.tablesMu.RLock()
+	defer h.tablesMu.RUnlock()
+	return h.tables
+}
+
+func (h *Handler) isValidTable(tableName string) bool {
+	_, ok := h.getTables()[tableName]
+	return ok
 }
