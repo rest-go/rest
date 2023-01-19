@@ -1,4 +1,4 @@
-package handler
+package server
 
 import (
 	"fmt"
@@ -14,12 +14,6 @@ func TestServer(t *testing.T) {
 		code, _, err := request(http.MethodGet, "/", nil)
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, code)
-
-		testHandler.WithPrefix("/abc")
-		code, _, err = request(http.MethodGet, "/", nil)
-		assert.Nil(t, err)
-		assert.Equal(t, http.StatusOK, code)
-		testHandler.WithPrefix("")
 
 		code, data, err := request(http.MethodGet, "/customers", nil)
 		assert.Nil(t, err)

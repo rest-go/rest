@@ -1,4 +1,4 @@
-package handler
+package server
 
 import (
 	"context"
@@ -40,20 +40,21 @@ CREATE INDEX [IFK_InvoiceCustomerId] ON "invoices" ([CustomerId]);
 `
 )
 
-var testHandler *Handler
+var testServer *Server
 
 func TestMain(m *testing.M) {
-	testHandler = New(&DBConfig{URL: "sqlite://ci.db"})
-	if _, err := testHandler.db.ExecQuery(context.Background(), setupSQL); err != nil {
+	testServer = New(&DBConfig{URL: "sqlite://ci.db"}, Prefix("/"))
+	if _, err := testServer.db.ExecQuery(context.Background(), setupSQL); err != nil {
 		log.Fatal(err)
 	}
 
 	// reinitialize server to get latest meta data
-	testHandler = New(&DBConfig{URL: "sqlite://ci.db"})
+	testServer = New(&DBConfig{URL: "sqlite://ci.db"})
 	if err := setupData(); err != nil {
 		log.Fatal(err)
 	}
 	code := m.Run()
+	testServer.Close()
 	os.Exit(code)
 }
 
@@ -98,7 +99,7 @@ func setupData() error {
 func request(method, target string, body io.Reader) (code int, resData any, err error) {
 	req := httptest.NewRequest(method, target, body)
 	w := httptest.NewRecorder()
-	testHandler.ServeHTTP(w, req)
+	testServer.ServeHTTP(w, req)
 	res := w.Result()
 	defer res.Body.Close()
 	data, err := io.ReadAll(res.Body)

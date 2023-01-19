@@ -1,7 +1,8 @@
 // package handler provide RESTFul interfaces for all database tables
-package handler
+package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,23 +10,33 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rest-go/auth"
 	j "github.com/rest-go/rest/pkg/jsonutil"
 	"github.com/rest-go/rest/pkg/log"
 	"github.com/rest-go/rest/pkg/sql"
 )
 
-// Handler is the representation of a restful server which handles CRUD requests
-type Handler struct {
+type UserAuthInfo struct {
+	column string
+	val    int64
+}
+
+// Server is the representation of a restful server which handles CRUD requests
+type Server struct {
 	db          *sql.DB
 	prefix      string
 	authEnabled bool
 
-	tablesMu sync.RWMutex
-	tables   map[string]*sql.Table
+	tablesMu   sync.RWMutex
+	tables     map[string]*sql.Table
+	policiesMu sync.RWMutex
+	policies   map[string]map[string]string // {table:action:exp}
+
+	done chan struct{}
 }
 
 // New returns a Handler pointer
-func New(dbConfig *DBConfig) *Handler {
+func New(dbConfig *DBConfig, options ...Option) *Server {
 	log.Infof("start server with config %v", dbConfig)
 	db, err := sql.Open(dbConfig.URL)
 	if err != nil {
@@ -36,52 +47,95 @@ func New(dbConfig *DBConfig) *Handler {
 	db.SetConnMaxLifetime(0)
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
-	h := &Handler{db: db}
+	h := &Server{db: db}
+	for _, opt := range options {
+		opt(h)
+	}
 	h.updateMeta()
 	return h
 }
 
-func (h *Handler) updateMeta() {
+func (s *Server) updateMeta() {
 	updateTask := func() {
-		tables := h.db.FetchTables()
+		tables := s.db.FetchTables()
 		ts := make([]string, 0, len(tables))
 		for _, t := range tables {
 			ts = append(ts, t.String())
 		}
 		log.Debugf("fetch tables from db: \n%s\n", strings.Join(ts, "\n"))
-		h.tablesMu.Lock()
-		h.tables = tables
-		h.tablesMu.Unlock()
+		s.tablesMu.Lock()
+		s.tables = tables
+		s.tablesMu.Unlock()
+
+		s.updatePolicies()
 	}
 	updateTask()
 	go func() {
 		interval := 30 * time.Second
 		ticker := time.NewTicker(interval)
-		for range ticker.C {
-			updateTask()
+		for {
+			select {
+			case <-s.done:
+				return
+			case <-ticker.C:
+				updateTask()
+			}
+
 		}
 	}()
 }
 
-func (h *Handler) getTables() map[string]*sql.Table {
-	h.tablesMu.RLock()
-	defer h.tablesMu.RUnlock()
-	return h.tables
+func (s *Server) Close() {
+	s.done <- struct{}{}
 }
 
-// EnableAuth set authEnabled=true
-func (h *Handler) SetAuth(enabled bool) {
-	h.authEnabled = enabled
+func (s *Server) updatePolicies() {
+	if !s.authEnabled {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), sql.DefaultTimeout)
+	defer cancel()
+	policiesData, err := s.db.FetchData(ctx, "SELECT table_name, action, expression FROM auth_policies")
+	if err != nil {
+		log.Errorf("fetch policies from db error: %v", err)
+	}
+	policies := map[string]map[string]string{}
+	for _, policyData := range policiesData {
+		var policy auth.Policy
+		err := j.MapToStruct(policyData, &policy)
+		if err != nil {
+			log.Errorf("get policy error: %v", err)
+			continue
+		}
+		if t, ok := policies[policy.TableName]; ok {
+			t[policy.Action] = policy.Expression
+		} else {
+			t := map[string]string{}
+			t[policy.Action] = policy.Expression
+			policies[policy.TableName] = t
+		}
+	}
+	log.Debugf("fetch policies from db: \n%s\n", policies)
+	s.policiesMu.Lock()
+	s.policies = policies
+	s.policiesMu.Unlock()
 }
 
-// WithPrefix set a prefix which will be trim automatically
-func (h *Handler) WithPrefix(prefix string) *Handler {
-	h.prefix = prefix
-	return h
+func (s *Server) getTables() map[string]*sql.Table {
+	s.tablesMu.RLock()
+	defer s.tablesMu.RUnlock()
+	return s.tables
 }
 
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, h.prefix)
+func (s *Server) getPolicies() map[string]map[string]string {
+	s.tablesMu.RLock()
+	defer s.tablesMu.RUnlock()
+	return s.policies
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, s.prefix)
 	tableName := strings.Trim(path, "/")
 	if tableName == "" {
 		res := &j.Response{
@@ -98,7 +152,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 {
 		tableName, pk = parts[0], parts[1]
 	}
-	table, ok := h.getTables()[tableName]
+	table, ok := s.getTables()[tableName]
 	if !ok {
 		res := &j.Response{
 			Code: http.StatusNotFound,
@@ -108,7 +162,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	urlQuery := sql.NewURLQuery(r.URL.Query(), h.db.DriverName)
+	urlQuery := sql.NewURLQuery(r.URL.Query(), s.db.DriverName)
 	// check primary key
 	if pk != "" {
 		if table.PrimaryKey == "" {
@@ -123,16 +177,43 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		urlQuery.Set("singular", "")
 	}
 
+	var authInfo *UserAuthInfo
+	if s.authEnabled {
+		action := getAction(urlQuery, r.Method)
+		user := auth.GetUser(r)
+		hasPerm, userIDColumn := user.HasPerm(tableName, action, s.getPolicies())
+
+		if !hasPerm {
+			res := &j.Response{
+				Code: http.StatusUnauthorized,
+				Msg:  "unauthorized",
+			}
+			j.Write(w, res)
+			return
+		}
+		if userIDColumn != "" {
+			if user.IsAnonymous() {
+				res := &j.Response{
+					Code: http.StatusUnauthorized,
+					Msg:  "unauthorized",
+				}
+				j.Write(w, res)
+				return
+			}
+			authInfo = &UserAuthInfo{userIDColumn, user.ID}
+		}
+	}
+
 	var data any
 	switch r.Method {
 	case "POST":
-		data = h.create(r, tableName, urlQuery)
+		data = s.create(r, tableName, urlQuery, authInfo)
 	case "DELETE":
-		data = h.delete(r, tableName, urlQuery)
+		data = s.delete(r, tableName, urlQuery, authInfo)
 	case "PUT", "PATCH":
-		data = h.update(r, tableName, urlQuery)
+		data = s.update(r, tableName, urlQuery, authInfo)
 	case "GET":
-		data = h.get(r, tableName, urlQuery)
+		data = s.get(r, tableName, urlQuery, authInfo)
 	default:
 		data = &j.Response{
 			Code: http.StatusMethodNotAllowed,
@@ -142,7 +223,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	j.Write(w, data)
 }
 
-func (h *Handler) create(r *http.Request, tableName string, urlQuery *sql.URLQuery) any {
+func (s *Server) create(r *http.Request, tableName string, urlQuery *sql.URLQuery, userInfo *UserAuthInfo) any {
 	var data sql.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -151,7 +232,10 @@ func (h *Handler) create(r *http.Request, tableName string, urlQuery *sql.URLQue
 			Msg:  fmt.Sprintf("failed to parse post json data, %v", err),
 		}
 	}
-
+	if userInfo != nil {
+		// create for current auth user
+		data.Set(userInfo.column, userInfo.val)
+	}
 	valuesQuery, err := data.ValuesQuery()
 	if err != nil {
 		return &j.Response{
@@ -167,10 +251,10 @@ func (h *Handler) create(r *http.Request, tableName string, urlQuery *sql.URLQue
 		strings.Join(valuesQuery.Placeholders, ","))
 	args := valuesQuery.Args
 	if urlQuery.IsDebug() {
-		return h.debug(query, args...)
+		return s.debug(query, args...)
 	}
 
-	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
+	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		log.Errorf("create error: %v", dbErr)
 		return j.ErrResponse(dbErr)
@@ -188,7 +272,12 @@ func (h *Handler) create(r *http.Request, tableName string, urlQuery *sql.URLQue
 	}
 }
 
-func (h *Handler) delete(r *http.Request, tableName string, urlQuery *sql.URLQuery) any {
+func (s *Server) delete(r *http.Request, tableName string, urlQuery *sql.URLQuery, userInfo *UserAuthInfo) any {
+	if userInfo != nil {
+		// filter by current auth user
+		urlQuery.Set(userInfo.column, fmt.Sprintf("eq.%d", userInfo.val))
+	}
+
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString("DELETE FROM ")
 	queryBuilder.WriteString(tableName)
@@ -200,10 +289,10 @@ func (h *Handler) delete(r *http.Request, tableName string, urlQuery *sql.URLQue
 
 	query := queryBuilder.String()
 	if urlQuery.IsDebug() {
-		return h.debug(query, args...)
+		return s.debug(query, args...)
 	}
 
-	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
+	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		log.Errorf("delete error: %v", dbErr)
 		return j.ErrResponse(dbErr)
@@ -215,7 +304,12 @@ func (h *Handler) delete(r *http.Request, tableName string, urlQuery *sql.URLQue
 	}
 }
 
-func (h *Handler) update(r *http.Request, tableName string, urlQuery *sql.URLQuery) any {
+func (s *Server) update(r *http.Request, tableName string, urlQuery *sql.URLQuery, userInfo *UserAuthInfo) any {
+	if userInfo != nil {
+		// filter current auth user
+		urlQuery.Set(userInfo.column, fmt.Sprintf("eq.%d", userInfo.val))
+	}
+
 	var data sql.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -245,10 +339,10 @@ func (h *Handler) update(r *http.Request, tableName string, urlQuery *sql.URLQue
 
 	query := queryBuilder.String()
 	if urlQuery.IsDebug() {
-		return h.debug(query, args...)
+		return s.debug(query, args...)
 	}
 
-	rows, dbErr := h.db.ExecQuery(r.Context(), query, args...)
+	rows, dbErr := s.db.ExecQuery(r.Context(), query, args...)
 	if dbErr != nil {
 		log.Errorf("update error: %v", dbErr)
 		return j.ErrResponse(dbErr)
@@ -259,9 +353,14 @@ func (h *Handler) update(r *http.Request, tableName string, urlQuery *sql.URLQue
 	}
 }
 
-func (h *Handler) get(r *http.Request, tableName string, urlQuery *sql.URLQuery) any {
+func (s *Server) get(r *http.Request, tableName string, urlQuery *sql.URLQuery, userInfo *UserAuthInfo) any {
+	if userInfo != nil {
+		// filter current auth user
+		urlQuery.Set(userInfo.column, fmt.Sprintf("eq.%d", userInfo.val))
+	}
+
 	if urlQuery.IsCount() {
-		return h.count(r, tableName)
+		return s.count(r, tableName, urlQuery)
 	}
 
 	var queryBuilder strings.Builder
@@ -291,10 +390,10 @@ func (h *Handler) get(r *http.Request, tableName string, urlQuery *sql.URLQuery)
 
 	query := queryBuilder.String()
 	if urlQuery.IsDebug() {
-		return h.debug(query, args...)
+		return s.debug(query, args...)
 	}
 
-	objects, dbErr := h.db.FetchData(r.Context(), query, args...)
+	objects, dbErr := s.db.FetchData(r.Context(), query, args...)
 	if dbErr != nil {
 		log.Errorf("read error: %v", dbErr)
 		return j.ErrResponse(dbErr)
@@ -304,7 +403,7 @@ func (h *Handler) get(r *http.Request, tableName string, urlQuery *sql.URLQuery)
 		if len(objects) == 0 {
 			return &j.Response{
 				Code: http.StatusNotFound,
-				Msg:  "query data not found in database",
+				Msg:  "data not found in database",
 			}
 		} else if len(objects) > 1 {
 			return &j.Response{
@@ -317,9 +416,14 @@ func (h *Handler) get(r *http.Request, tableName string, urlQuery *sql.URLQuery)
 	return objects // return  []map[string]any
 }
 
-func (h *Handler) count(r *http.Request, tableName string) any {
+func (s *Server) count(r *http.Request, tableName string, urlQuery *sql.URLQuery) any {
 	query := fmt.Sprintf("SELECT COUNT(1) AS count FROM %s", tableName)
-	objects, dbErr := h.db.FetchData(r.Context(), query)
+	_, whereQuery, args := urlQuery.WhereQuery(1)
+	if whereQuery != "" {
+		query += fmt.Sprintf(" WHERE %s", whereQuery)
+	}
+
+	objects, dbErr := s.db.FetchData(r.Context(), query, args...)
 	if dbErr != nil {
 		log.Errorf("fetch count error: %v", dbErr)
 		return j.ErrResponse(dbErr)
@@ -327,11 +431,27 @@ func (h *Handler) count(r *http.Request, tableName string) any {
 	return objects[0]["count"]
 }
 
-func (h *Handler) debug(query string, args ...any) any {
+func (s *Server) debug(query string, args ...any) any {
 	return &struct {
 		Query string `json:"query"`
 		Args  []any  `json:"args"`
 	}{
 		query, args,
+	}
+}
+
+func getAction(query *sql.URLQuery, method string) auth.Action {
+	switch method {
+	case "POST":
+		return auth.ActionCreate
+	case "PUT", "PATCH":
+		return auth.ActionUpdate
+	case "DELETE":
+		return auth.ActionDelete
+	default:
+		if query.IsMine() {
+			return auth.ActionReadMine
+		}
+		return auth.ActionRead
 	}
 }

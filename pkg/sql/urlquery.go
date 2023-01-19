@@ -130,6 +130,11 @@ func (q *URLQuery) IsSingular() bool {
 	return ok
 }
 
+func (q *URLQuery) IsMine() bool {
+	_, ok := q.values["mine"]
+	return ok
+}
+
 func (q *URLQuery) buildColumn(c string, as bool) string {
 	columnName := c
 	asName := ""

@@ -205,7 +205,7 @@ func (db *DB) FetchOne(ctx context.Context, query string, args ...any) (map[stri
 	}
 
 	if len(objects) == 0 {
-		return nil, NewError(http.StatusNotFound, "data not found in database")
+		return nil, NewError(http.StatusNotFound, "not found")
 	} else if len(objects) > 1 {
 		return nil, NewError(http.StatusBadRequest, "multiple rows found in database")
 	}

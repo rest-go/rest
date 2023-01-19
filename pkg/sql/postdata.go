@@ -137,6 +137,13 @@ func (pd *PostData) SetQuery(index uint) (*SetQuery, error) {
 	}, nil
 }
 
+// Set sets custom column and val to each objects
+func (pd *PostData) Set(column string, val any) {
+	for i := range pd.objects {
+		pd.objects[i][column] = val
+	}
+}
+
 func identKeys(m map[string]any, keys []string) bool {
 	if len(m) != len(keys) {
 		return false

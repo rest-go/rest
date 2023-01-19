@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/rest-go/auth"
-	"github.com/rest-go/rest/pkg/handler"
 	"github.com/rest-go/rest/pkg/log"
+	"github.com/rest-go/rest/pkg/server"
 )
 
 func parseFlags() *Config {
@@ -36,7 +36,7 @@ func parseFlags() *Config {
 
 func main() {
 	cfg := parseFlags()
-	restHandler := handler.New(&cfg.DB)
+	restSrv := server.New(&cfg.DB, server.EnableAuth(cfg.Auth.Enabled))
 	if cfg.Auth.Enabled {
 		log.Info("auth is enabled")
 		restAuth, err := auth.New(cfg.DB.URL, []byte(cfg.Auth.Secret))
@@ -44,9 +44,9 @@ func main() {
 			log.Fatal("initialize auth error ", err)
 		}
 		http.Handle("/auth/", restAuth)
-		http.Handle("/", restAuth.Middleware(restHandler))
+		http.Handle("/", restAuth.Middleware(restSrv))
 	} else {
-		http.Handle("/", restHandler)
+		http.Handle("/", restSrv)
 	}
 
 	log.Info("listen on addr: ", cfg.Addr)
