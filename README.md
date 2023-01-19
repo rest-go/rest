@@ -67,13 +67,13 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/rest-go/rest/pkg/server"
+	"github.com/rest-go/rest/pkg/handler"
 )
 
 func main() {
-	s := server.NewServer(server.Config{Prefix: "/admin", DB: server.DBConfig{URL: "sqlite://ci.db"}})
-	http.Handle("/admin", s)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	h := handler.New(&handler.DBConfig{URL: "sqlite://ci.db"})
+	http.Handle("/admin/", h.WithPrefix("/admin"))
+	log.Fatal(http.ListenAndServe(":3001", nil))
 }
 ```
 

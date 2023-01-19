@@ -1,4 +1,4 @@
-package sqlx
+package sql
 
 import (
 	"context"
@@ -49,7 +49,7 @@ func TestDBTables(t *testing.T) {
 		}
 		db, err := Open(url)
 		assert.Nil(t, err)
-		_ = db.Tables()
+		_ = db.FetchTables()
 	})
 
 	t.Run("mysql", func(t *testing.T) {
@@ -59,14 +59,14 @@ func TestDBTables(t *testing.T) {
 		}
 		db, err := Open(url)
 		assert.Nil(t, err)
-		tables := db.Tables()
+		tables := db.FetchTables()
 		t.Log("get tables: ", tables)
 	})
 
 	t.Run("sqlite", func(t *testing.T) {
 		db, err := setupDB()
 		assert.Nil(t, err)
-		tables := db.Tables()
+		tables := db.FetchTables()
 		assert.Equal(t, 1, len(tables))
 		t.Log("get table: ", tables)
 		columns := tables["customers"].Columns

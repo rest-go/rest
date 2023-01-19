@@ -3,17 +3,18 @@
 // 1. generate query from HTTP input
 // 2. execute query against different SQL databases
 // 3. provide helper functions to get meta information from database
-package sqlx
+package sql
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
+	stdSQL "database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/rest-go/rest/pkg/log"
 )
 
 type DriverType int
@@ -31,6 +32,12 @@ const DefaultTimeout = 2 * time.Minute
 type Column struct {
 	ColumnName string `json:"column_name"`
 	DataType   string `json:"data_type"`
+	NotNull    bool   `json:"notnull"`
+	Pk         bool   `json:"pk"`
+}
+
+func (c Column) String() string {
+	return fmt.Sprintf("%s %s notnull:%t, pk:%t", c.ColumnName, c.DataType, c.NotNull, c.Pk)
 }
 
 // Table represents a table in database with name and columns
@@ -41,26 +48,31 @@ type Table struct {
 
 func (t Table) String() string {
 	var columnsBuilder strings.Builder
+	columnsBuilder.WriteString("(\n")
 	for i, c := range t.Columns {
-		columnsBuilder.WriteString(c.ColumnName)
-		columnsBuilder.WriteString(" ")
-		columnsBuilder.WriteString(c.DataType)
+		columnsBuilder.WriteString("  ")
+		columnsBuilder.WriteString(c.String())
 		if i < len(t.Columns)-1 {
 			columnsBuilder.WriteString(",\n")
 		}
 	}
-	return fmt.Sprintf("%s (%s)", t.Name, columnsBuilder.String())
+	columnsBuilder.WriteString("\n)")
+	return fmt.Sprintf("%s %s", t.Name, columnsBuilder.String())
 }
 
 // DB is a wrapper of the golang database/sql DB struct with a DriverName to
 // handle generic logic against different SQL database
 type DB struct {
-	*sql.DB
+	*stdSQL.DB
 	DriverName string
+
+	tablesMu sync.RWMutex
+	tables   map[string]Table
 }
 
-func New(db *sql.DB, driverName string) *DB {
-	return &DB{db, driverName}
+func New(db *stdSQL.DB, driverName string) *DB {
+	dbb := &DB{DB: db, DriverName: driverName}
+	return dbb
 }
 
 // Open connects to database by specify database url and ping it
@@ -84,16 +96,67 @@ func Open(url string) (*DB, error) {
 			dsn += "?_pragma=busy_timeout(5000)"
 		}
 	}
-	db, err := sql.Open(driver, dsn)
-	if err == nil {
-		err = db.Ping()
+	db, err := stdSQL.Open(driver, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open db error: %v", err)
 	}
-	return &DB{db, driverName}, err
+	err = db.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("ping db error: %v", err)
+	}
+	dbb := &DB{DB: db, DriverName: driverName}
+	return dbb, err
 }
 
-// Tables return all the tables in current database along with all the columns
+func (db *DB) GetTables() map[string]Table {
+	db.tablesMu.RLock()
+	defer db.tablesMu.RUnlock()
+	return db.tables
+}
+
+// fetchColumns fetch columns for a table
+// Note: it doesn't use `fetchData` method because we want to control return
+// data type by ourself
+func (db *DB) fetchColumns(tableName string) ([]Column, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancel()
+
+	helper := helpers[db.DriverName]
+	columnsQuery := helper.GetColumnsSQL(tableName)
+	rows, err := db.QueryContext(ctx, columnsQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	columns := []Column{}
+	hasPK := false
+	multiPK := false
+	for rows.Next() {
+		var column Column
+		if err := rows.Scan(&column.ColumnName, &column.DataType, &column.NotNull, &column.Pk); err != nil {
+			return nil, err
+		}
+		if column.Pk {
+			if !hasPK {
+				hasPK = true
+			} else {
+				multiPK = true
+			}
+		}
+		columns = append(columns, column)
+	}
+	if multiPK {
+		log.Debug("pk found on multiple columns which is not supported: ", tableName)
+		for i := range columns {
+			columns[i].Pk = false
+		}
+	}
+	return columns, nil
+}
+
+// FetchTables return all the tables in current database along with all the columns
 // name and datatype
-func (db *DB) Tables() map[string]Table {
+func (db *DB) FetchTables() map[string]*Table {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
@@ -101,50 +164,25 @@ func (db *DB) Tables() map[string]Table {
 	query := helper.GetTablesSQL()
 	rows, err := db.FetchData(ctx, query)
 	if err != nil {
-		log.Print("fetch tables error: ", err)
+		log.Errorf("fetch tables error: %v", err)
 	}
-	tables := make(map[string]Table, len(rows))
+	tables := make(map[string]*Table, len(rows))
 	for _, row := range rows {
 		tableName := row["name"].(string)
-
-		columnsQuery := helper.GetColumnsSQL(tableName)
-		rows, err := db.FetchData(ctx, columnsQuery)
+		columns, err := db.fetchColumns(tableName)
 		if err != nil {
-			log.Printf("fetch columns error %v, skip table %s", err, tableName)
+			log.Errorf("fetch columns error %v, skip table %s", err, tableName)
 			continue
 		}
-
-		columns := make([]Column, 0, len(rows))
-		var columnErr error
-		for _, row := range rows {
-			data, err := json.Marshal(row)
-			if err != nil {
-				columnErr = err
-				break
-			}
-
-			column := Column{}
-			if err := json.Unmarshal(data, &column); err != nil {
-				columnErr = err
-				break
-			}
-			columns = append(columns, column)
-		}
-		if columnErr != nil {
-			log.Printf("get columns error %v, skip table %s", columnErr, tableName)
-			continue
-		}
-
-		tables[tableName] = Table{tableName, columns}
+		tables[tableName] = &Table{tableName, columns}
 	}
-
 	return tables
 }
 
 // ExecQuery execute and query in database and return rows affected or an error
 func (db *DB) ExecQuery(ctx context.Context, query string, args ...any) (int64, error) {
 	query = Rebind(db.DriverName, query)
-	log.Printf("exec query, query: %v, args: %v", query, args)
+	log.Debugf("exec query, query: %v, args: %v", query, args)
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
@@ -163,7 +201,7 @@ func (db *DB) ExecQuery(ctx context.Context, query string, args ...any) (int64, 
 // or error
 func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[string]any, error) {
 	query = Rebind(db.DriverName, query)
-	log.Printf("fetch data, query: %v, args: %v", query, args)
+	log.Debugf("fetch data, query: %v, args: %v", query, args)
 	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
@@ -178,11 +216,11 @@ func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[s
 		return nil, convertError("failed to get columns from database", err)
 	}
 
-	count := len(columnTypes)
+	columnCount := len(columnTypes)
 	objects := []map[string]any{}
 	for rows.Next() {
-		scanArgs := make([]any, count)
-		converters := make([]TypeConverter, count)
+		scanArgs := make([]any, columnCount)
+		converters := make([]TypeConverter, columnCount)
 		for i, v := range columnTypes {
 			t, converter := getTypeAndConverter(v.DatabaseTypeName())
 			scanArgs[i] = t
@@ -193,7 +231,7 @@ func (db *DB) FetchData(ctx context.Context, query string, args ...any) ([]map[s
 			return nil, convertError("failed to scan data from database", err)
 		}
 
-		object := make(map[string]any, count)
+		object := make(map[string]any, columnCount)
 		for i, v := range columnTypes {
 			object[v.Name()] = converters[i](scanArgs[i])
 		}

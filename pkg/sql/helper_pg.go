@@ -1,4 +1,4 @@
-package sqlx
+package sql
 
 import "fmt"
 
@@ -24,9 +24,20 @@ func (h PGHelper) GetTablesSQL() string {
 
 func (h PGHelper) GetColumnsSQL(tableName string) string {
 	return fmt.Sprintf(`
-	SELECT column_name, data_type
-	FROM information_schema.columns
-	WHERE table_name = '%s' 
-	ORDER BY ordinal_position;
+	SELECT
+		c.column_name,
+		c.data_type,
+		c.is_nullable='NO' as notnull,
+		pc.contype='p' IS TRUE as pk
+	FROM information_schema.columns c
+	LEFT JOIN information_schema.key_column_usage kcu
+	ON 
+		c.column_name = kcu.column_name AND
+		c.table_name = kcu.table_name
+	LEFT JOIN pg_constraint pc
+	ON 
+		kcu.constraint_name=pc.conname
+	WHERE c.table_name = '%s' 
+	ORDER BY c.ordinal_position;
 	`, tableName)
 }

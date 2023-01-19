@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/rest-go/rest/pkg/sqlx"
+	"github.com/rest-go/rest/pkg/sql"
 )
 
 // Response serves a default JSON output when no data fetched from data
@@ -31,7 +31,7 @@ func Write(w http.ResponseWriter, data any) {
 }
 
 func ErrResponse(err error) *Response {
-	var dbErr sqlx.Error
+	var dbErr sql.Error
 	if errors.As(err, &dbErr) {
 		return &Response{Code: dbErr.Code, Msg: dbErr.Msg}
 	}

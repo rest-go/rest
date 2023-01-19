@@ -2,12 +2,12 @@ package main
 
 import (
 	"flag"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/rest-go/auth"
 	"github.com/rest-go/rest/pkg/handler"
+	"github.com/rest-go/rest/pkg/log"
 )
 
 func parseFlags() *Config {
@@ -38,7 +38,7 @@ func main() {
 	cfg := parseFlags()
 	restHandler := handler.New(&cfg.DB)
 	if cfg.Auth.Enabled {
-		log.Print("auth is enabled")
+		log.Info("auth is enabled")
 		restAuth, err := auth.New(cfg.DB.URL, []byte(cfg.Auth.Secret))
 		if err != nil {
 			log.Fatal("initialize auth error ", err)
@@ -49,7 +49,7 @@ func main() {
 		http.Handle("/", restHandler)
 	}
 
-	log.Print("listen on addr: ", cfg.Addr)
+	log.Info("listen on addr: ", cfg.Addr)
 	server := &http.Server{
 		Addr:              cfg.Addr,
 		ReadHeaderTimeout: 3 * time.Second,

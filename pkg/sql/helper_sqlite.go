@@ -1,4 +1,4 @@
-package sqlx
+package sql
 
 import "fmt"
 
@@ -18,7 +18,11 @@ func (h SQLiteHelper) GetTablesSQL() string {
 
 func (h SQLiteHelper) GetColumnsSQL(tableName string) string {
 	return fmt.Sprintf(`
-		SELECT name as column_name, type as data_type
+		SELECT 
+			name as column_name,
+			type as data_type,
+			"notnull" = 1 as "notnull",
+			pk >=1 as pk
 		FROM PRAGMA_TABLE_INFO('%s')
 	`, tableName)
 }

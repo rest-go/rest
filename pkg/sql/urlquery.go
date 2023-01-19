@@ -1,11 +1,12 @@
-package sqlx
+package sql
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/rest-go/rest/pkg/log"
 )
 
 var jsonPathFunc = map[string]func(column string) (jsonPath, asName string){
@@ -70,13 +71,13 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 		}
 		vals := strings.Split(v[0], ".")
 		if len(vals) != 2 {
-			log.Print("unsupported vals: ", vals)
+			log.Warnf("unsupported vals: %v", vals)
 			continue
 		}
 		op, val := vals[0], vals[1]
 		operator, ok := Operators[op]
 		if !ok {
-			log.Print("unsupported op: ", op)
+			log.Warnf("unsupported op: %s", op)
 			continue
 		}
 

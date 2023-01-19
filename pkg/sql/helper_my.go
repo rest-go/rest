@@ -1,4 +1,4 @@
-package sqlx
+package sql
 
 import "fmt"
 
@@ -14,8 +14,12 @@ func (h MyHelper) GetTablesSQL() string {
 
 func (h MyHelper) GetColumnsSQL(tableName string) string {
 	return fmt.Sprintf(`
-	SELECT COLUMN_NAME, DATA_TYPE
-	FROM INFORMATION_SCHEMA. COLUMNS
+	SELECT
+		COLUMN_NAME AS column_name,
+		DATA_TYPE AS data_type,
+		IS_NULLABLE="NO" AS notnull,
+		COLUMN_KEY="PRI" AS pk
+	FROM INFORMATION_SCHEMA.COLUMNS
 	WHERE table_schema = DATABASE() AND table_name = '%s';
 	`, tableName)
 }
