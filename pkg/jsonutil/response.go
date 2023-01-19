@@ -5,9 +5,9 @@ package jsonutil
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
+	"github.com/rest-go/rest/pkg/log"
 	"github.com/rest-go/rest/pkg/sql"
 )
 
@@ -26,7 +26,7 @@ func Write(w http.ResponseWriter, data any) {
 	}
 
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("failed to encode json data, %v", err)
+		log.Errorf("failed to encode json data, %v", err)
 	}
 }
 

@@ -10,13 +10,12 @@ import (
 	"github.com/rest-go/rest/pkg/server"
 )
 
-func parseFlags() *Config {
+func parseConfig() *Config {
 	addr := flag.String("addr", ":3000", "listen addr")
 	url := flag.String("db.url", "", "db url")
 	cfgPath := flag.String("config", "", "path to config file")
-
-	// Actually parse the flags
 	flag.Parse()
+
 	cfg := &Config{}
 	if *cfgPath != "" {
 		var err error
@@ -35,8 +34,8 @@ func parseFlags() *Config {
 }
 
 func main() {
-	cfg := parseFlags()
-	restSrv := server.New(&cfg.DB, server.EnableAuth(cfg.Auth.Enabled))
+	cfg := parseConfig()
+	restServer := server.New(&cfg.DB, server.EnableAuth(cfg.Auth.Enabled))
 	if cfg.Auth.Enabled {
 		log.Info("auth is enabled")
 		restAuth, err := auth.New(cfg.DB.URL, []byte(cfg.Auth.Secret))
@@ -44,15 +43,15 @@ func main() {
 			log.Fatal("initialize auth error ", err)
 		}
 		http.Handle("/auth/", restAuth)
-		http.Handle("/", restAuth.Middleware(restSrv))
+		http.Handle("/", restAuth.Middleware(restServer))
 	} else {
-		http.Handle("/", restSrv)
+		http.Handle("/", restServer)
 	}
 
-	log.Info("listen on addr: ", cfg.Addr)
-	server := &http.Server{
+	s := &http.Server{
 		Addr:              cfg.Addr,
 		ReadHeaderTimeout: 3 * time.Second,
 	}
-	log.Fatal(server.ListenAndServe())
+	log.Info("listen on addr: ", cfg.Addr)
+	log.Fatal(s.ListenAndServe())
 }

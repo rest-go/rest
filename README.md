@@ -10,7 +10,7 @@ Visit https://rest-go.com for the full documentation, examples, and guides.
 
 ## Getting Started
 
-### Start Rest in Docker
+### Start with Docker
 run the server and connect to an existing database
 ``` bash
 # connect to postgres
@@ -67,13 +67,12 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/rest-go/rest/pkg/handler"
+	"github.com/rest-go/rest/pkg/server"
 )
 
 func main() {
-	cfg := &handler.DBConfig{URL: "sqlite://ci.db"}
-	h := handler.New(cfg)
-	http.Handle("/admin/", h.WithPrefix("/admin"))
+	h := server.New(&server.DBConfig{URL: "sqlite://my.db"}, server.Prefix("/admin"))
+	http.Handle("/admin/", h)
 	log.Fatal(http.ListenAndServe(":3001", nil))
 }
 ```
@@ -86,9 +85,10 @@ func main() {
 - [x] order by
 - [x] count
 - [x] json 
+- [x] Authentication and Authorization
+
 ## Road map
-- [ ] Authentication and Authorization
 - [ ] Resource Embedding(one-to-one, one-to-many)
 - [ ] Logical operators(and, or)
-- [ ] Open API
+- [ ] Open API document
 - [ ] Web UI management
