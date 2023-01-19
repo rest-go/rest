@@ -182,7 +182,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		action := getAction(urlQuery, r.Method)
 		user := auth.GetUser(r)
 		hasPerm, userIDColumn := user.HasPerm(tableName, action, s.getPolicies())
-
 		if !hasPerm {
 			res := &j.Response{
 				Code: http.StatusUnauthorized,
@@ -192,14 +191,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if userIDColumn != "" {
-			if user.IsAnonymous() {
-				res := &j.Response{
-					Code: http.StatusUnauthorized,
-					Msg:  "unauthorized",
-				}
-				j.Write(w, res)
-				return
-			}
 			authInfo = &UserAuthInfo{userIDColumn, user.ID}
 		}
 	}

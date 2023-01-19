@@ -66,7 +66,6 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 		}
 		vals := strings.Split(v[0], ".")
 		if len(vals) != 2 {
-			log.Warnf("unsupported vals: %v", vals)
 			continue
 		}
 		op, val := vals[0], vals[1]
