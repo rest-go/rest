@@ -16,8 +16,9 @@ import (
 
 // Handler is the representation of a restful server which handles CRUD requests
 type Handler struct {
-	db     *sql.DB
-	prefix string
+	db          *sql.DB
+	prefix      string
+	authEnabled bool
 
 	tablesMu sync.RWMutex
 	tables   map[string]*sql.Table
@@ -62,6 +63,17 @@ func (h *Handler) updateMeta() {
 	}()
 }
 
+func (h *Handler) getTables() map[string]*sql.Table {
+	h.tablesMu.RLock()
+	defer h.tablesMu.RUnlock()
+	return h.tables
+}
+
+// EnableAuth set authEnabled=true
+func (h *Handler) SetAuth(enabled bool) {
+	h.authEnabled = enabled
+}
+
 // WithPrefix set a prefix which will be trim automatically
 func (h *Handler) WithPrefix(prefix string) *Handler {
 	h.prefix = prefix
@@ -70,8 +82,8 @@ func (h *Handler) WithPrefix(prefix string) *Handler {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, h.prefix)
-	table := strings.TrimPrefix(path, "/")
-	if table == "" {
+	tableName := strings.Trim(path, "/")
+	if tableName == "" {
 		res := &j.Response{
 			Code: http.StatusOK,
 			Msg:  "rest server is up and running",
@@ -80,35 +92,47 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := ""
-	parts := strings.Split(table, "/")
+	// check table name
+	pk := ""
+	parts := strings.Split(tableName, "/")
 	if len(parts) == 2 {
-		table, id = parts[0], parts[1]
+		tableName, pk = parts[0], parts[1]
 	}
-	if _, ok := h.db.GetTables()[table]; !ok {
+	table, ok := h.getTables()[tableName]
+	if !ok {
 		res := &j.Response{
 			Code: http.StatusNotFound,
-			Msg:  fmt.Sprintf("table does not exist: %s", table),
+			Msg:  fmt.Sprintf("table does not exist: %s", tableName),
 		}
 		j.Write(w, res)
 		return
 	}
 
-	var data any
-	values := r.URL.Query()
-	if id != "" {
-		values.Set("id", fmt.Sprintf("eq.%s", id))
+	urlQuery := sql.NewURLQuery(r.URL.Query(), h.db.DriverName)
+	// check primary key
+	if pk != "" {
+		if table.PrimaryKey == "" {
+			res := &j.Response{
+				Code: http.StatusBadRequest,
+				Msg:  fmt.Sprintf("primary key not found on table: %s", table),
+			}
+			j.Write(w, res)
+			return
+		}
+		urlQuery.Set(table.PrimaryKey, fmt.Sprintf("eq.%s", pk))
+		urlQuery.Set("singular", "")
 	}
-	urlQuery := sql.NewURLQuery(values, h.db.DriverName)
+
+	var data any
 	switch r.Method {
 	case "POST":
-		data = h.create(r, table, urlQuery)
+		data = h.create(r, tableName, urlQuery)
 	case "DELETE":
-		data = h.delete(r, table, urlQuery)
+		data = h.delete(r, tableName, urlQuery)
 	case "PUT", "PATCH":
-		data = h.update(r, table, urlQuery)
+		data = h.update(r, tableName, urlQuery)
 	case "GET":
-		data = h.get(r, table, urlQuery)
+		data = h.get(r, tableName, urlQuery)
 	default:
 		data = &j.Response{
 			Code: http.StatusMethodNotAllowed,
@@ -276,7 +300,7 @@ func (h *Handler) get(r *http.Request, tableName string, urlQuery *sql.URLQuery)
 		return j.ErrResponse(dbErr)
 	}
 
-	if urlQuery.IsSingular() || urlQuery.HasID() {
+	if urlQuery.IsSingular() {
 		if len(objects) == 0 {
 			return &j.Response{
 				Code: http.StatusNotFound,

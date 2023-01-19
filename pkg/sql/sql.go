@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rest-go/rest/pkg/log"
@@ -28,46 +27,11 @@ const (
 // DefaultTimeout for all database operations
 const DefaultTimeout = 2 * time.Minute
 
-// Column represents a table column with name and type
-type Column struct {
-	ColumnName string `json:"column_name"`
-	DataType   string `json:"data_type"`
-	NotNull    bool   `json:"notnull"`
-	Pk         bool   `json:"pk"`
-}
-
-func (c Column) String() string {
-	return fmt.Sprintf("%s %s notnull:%t, pk:%t", c.ColumnName, c.DataType, c.NotNull, c.Pk)
-}
-
-// Table represents a table in database with name and columns
-type Table struct {
-	Name    string
-	Columns []Column
-}
-
-func (t Table) String() string {
-	var columnsBuilder strings.Builder
-	columnsBuilder.WriteString("(\n")
-	for i, c := range t.Columns {
-		columnsBuilder.WriteString("  ")
-		columnsBuilder.WriteString(c.String())
-		if i < len(t.Columns)-1 {
-			columnsBuilder.WriteString(",\n")
-		}
-	}
-	columnsBuilder.WriteString("\n)")
-	return fmt.Sprintf("%s %s", t.Name, columnsBuilder.String())
-}
-
 // DB is a wrapper of the golang database/sql DB struct with a DriverName to
 // handle generic logic against different SQL database
 type DB struct {
 	*stdSQL.DB
 	DriverName string
-
-	tablesMu sync.RWMutex
-	tables   map[string]Table
 }
 
 func New(db *stdSQL.DB, driverName string) *DB {
@@ -108,16 +72,10 @@ func Open(url string) (*DB, error) {
 	return dbb, err
 }
 
-func (db *DB) GetTables() map[string]Table {
-	db.tablesMu.RLock()
-	defer db.tablesMu.RUnlock()
-	return db.tables
-}
-
 // fetchColumns fetch columns for a table
 // Note: it doesn't use `fetchData` method because we want to control return
 // data type by ourself
-func (db *DB) fetchColumns(tableName string) ([]Column, error) {
+func (db *DB) fetchColumns(tableName string) ([]*Column, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancel()
 
@@ -125,33 +83,29 @@ func (db *DB) fetchColumns(tableName string) ([]Column, error) {
 	columnsQuery := helper.GetColumnsSQL(tableName)
 	rows, err := db.QueryContext(ctx, columnsQuery)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	columns := []Column{}
+	columns := []*Column{}
+	primaryKey := ""
 	hasPK := false
-	multiPK := false
 	for rows.Next() {
 		var column Column
 		if err := rows.Scan(&column.ColumnName, &column.DataType, &column.NotNull, &column.Pk); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if column.Pk {
 			if !hasPK {
+				primaryKey = column.ColumnName
 				hasPK = true
 			} else {
-				multiPK = true
+				// primary key on multiple columns is not suppored for now, clear it
+				primaryKey = ""
 			}
 		}
-		columns = append(columns, column)
+		columns = append(columns, &column)
 	}
-	if multiPK {
-		log.Debug("pk found on multiple columns which is not supported: ", tableName)
-		for i := range columns {
-			columns[i].Pk = false
-		}
-	}
-	return columns, nil
+	return columns, primaryKey, nil
 }
 
 // FetchTables return all the tables in current database along with all the columns
@@ -169,12 +123,12 @@ func (db *DB) FetchTables() map[string]*Table {
 	tables := make(map[string]*Table, len(rows))
 	for _, row := range rows {
 		tableName := row["name"].(string)
-		columns, err := db.fetchColumns(tableName)
+		columns, pk, err := db.fetchColumns(tableName)
 		if err != nil {
 			log.Errorf("fetch columns error %v, skip table %s", err, tableName)
 			continue
 		}
-		tables[tableName] = &Table{tableName, columns}
+		tables[tableName] = &Table{tableName, pk, columns}
 	}
 	return tables
 }

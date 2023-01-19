@@ -71,7 +71,8 @@ import (
 )
 
 func main() {
-	h := handler.New(&handler.DBConfig{URL: "sqlite://ci.db"})
+	cfg := &handler.DBConfig{URL: "sqlite://ci.db"}
+	h := handler.New(cfg)
 	http.Handle("/admin/", h.WithPrefix("/admin"))
 	log.Fatal(http.ListenAndServe(":3001", nil))
 }

@@ -3,13 +3,12 @@ package handler
 import "fmt"
 
 type Config struct {
-	Prefix string
-	DB     DBConfig
-	Auth   AuthConfig
+	DB   DBConfig
+	Auth AuthConfig
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf("prefix: %s, db: %s, auth: %s", c.Prefix, c.DB, c.Auth)
+	return fmt.Sprintf("db: %s, auth: %s", c.DB, c.Auth)
 }
 
 type DBConfig struct {

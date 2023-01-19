@@ -40,7 +40,7 @@ func init() { //nolint:gochecknoinits
 	}
 }
 
-func InitLevel(level Level) {
+func SetLevel(level Level) {
 	logLevel = level
 }
 
