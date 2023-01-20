@@ -19,6 +19,7 @@ const (
 
 	// MySQL errors
 	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html
+	MYErrNoDefaultForField = 1364
 
 	// SQLite errors
 	// https://www.sqlite.org/rescode.html
@@ -91,5 +92,9 @@ func sqliteErrCodeToHTTPCode(code int) int {
 
 // myErrCodeToHTTPCode converts MySQL Error to HTTP code
 func myErrCodeToHTTPCode(code int) int {
+	switch code {
+	case MYErrNoDefaultForField:
+		return http.StatusBadRequest
+	}
 	return http.StatusInternalServerError
 }

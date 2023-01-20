@@ -47,12 +47,16 @@ func New(dbConfig *DBConfig, options ...Option) *Server {
 	db.SetConnMaxLifetime(0)
 	db.SetMaxIdleConns(defaultIdleConns)
 	db.SetMaxOpenConns(defaultOpenConns)
-	h := &Server{db: db}
+	h := &Server{db: db, done: make(chan struct{})}
 	for _, opt := range options {
 		opt(h)
 	}
 	h.updateMeta()
 	return h
+}
+
+func (s *Server) Close() {
+	close(s.done)
 }
 
 func (s *Server) updateMeta() {
@@ -62,7 +66,7 @@ func (s *Server) updateMeta() {
 		for _, t := range tables {
 			ts = append(ts, t.String())
 		}
-		log.Debugf("fetch tables from db: \n%s\n", strings.Join(ts, "\n"))
+		log.Tracef("fetch tables from db: \n%s\n", strings.Join(ts, "\n"))
 		s.tablesMu.Lock()
 		s.tables = tables
 		s.tablesMu.Unlock()
@@ -80,13 +84,8 @@ func (s *Server) updateMeta() {
 			case <-ticker.C:
 				updateTask()
 			}
-
 		}
 	}()
-}
-
-func (s *Server) Close() {
-	s.done <- struct{}{}
 }
 
 func (s *Server) updatePolicies() {
@@ -116,7 +115,7 @@ func (s *Server) updatePolicies() {
 			policies[policy.TableName] = t
 		}
 	}
-	log.Debugf("fetch policies from db: \n%s\n", policies)
+	log.Tracef("fetch policies from db: \n%s\n", policies)
 	s.policiesMu.Lock()
 	s.policies = policies
 	s.policiesMu.Unlock()
@@ -278,6 +277,12 @@ func (s *Server) delete(r *http.Request, tableName string, urlQuery *sql.URLQuer
 	if whereQuery != "" {
 		queryBuilder.WriteString(" WHERE ")
 		queryBuilder.WriteString(whereQuery)
+	} else {
+		return &j.Response{
+			Code: http.StatusBadRequest,
+			Msg: `delete without any condition is not allowed, please check the url query
+If you really want to do it, uses 1=eq.1 to bypass it`,
+		}
 	}
 
 	query := queryBuilder.String()
@@ -330,6 +335,12 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sql.URLQuer
 		queryBuilder.WriteString(" WHERE ")
 		queryBuilder.WriteString(whereQuery)
 		args = append(args, args2...)
+	} else {
+		return &j.Response{
+			Code: http.StatusBadRequest,
+			Msg: `update without any condition is not allowed, please check the url query
+If you really want to do it, uses 1=eq.1 to bypass it`,
+		}
 	}
 
 	query := queryBuilder.String()

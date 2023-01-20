@@ -13,6 +13,7 @@ const (
 	WarnLevel
 	ErrorLevel
 	DebugLevel
+	TraceLevel
 )
 
 var (
@@ -20,6 +21,7 @@ var (
 	WarnLogger  = log.New(os.Stderr, "WARN: ", log.Ldate|log.Ltime)
 	ErrorLogger = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime)
 	DebugLogger = log.New(os.Stderr, "DEBUG: ", log.Ldate|log.Ltime)
+	TraceLogger = log.New(os.Stderr, "TRACE: ", log.Ldate|log.Ltime)
 
 	logLevel Level
 )
@@ -88,6 +90,19 @@ func Debugf(format string, v ...any) {
 		return
 	}
 	DebugLogger.Printf(format, v...)
+}
+
+func Trace(v ...any) {
+	if logLevel < TraceLevel {
+		return
+	}
+	TraceLogger.Print(v...)
+}
+func Tracef(format string, v ...any) {
+	if logLevel < TraceLevel {
+		return
+	}
+	TraceLogger.Printf(format, v...)
 }
 
 func Fatal(v ...any) {

@@ -3,11 +3,14 @@ package sql
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/rest-go/rest/pkg/log"
 )
+
+var invalidIdentifier = regexp.MustCompile("[ ;'\"]")
 
 var jsonPathFunc = map[string]func(column string) (jsonPath, asName string){
 	"postgres": buildPGJSONPath,
@@ -31,16 +34,22 @@ func (q *URLQuery) Set(key, value string) {
 // SelectQuery return sql projection string
 func (q *URLQuery) SelectQuery() string {
 	selects := q.values["select"]
-	if len(selects) == 0 {
-		return "*"
+	if len(selects) > 0 {
+		columns := strings.Split(selects[0], ",")
+		validColumns := make([]string, 0, len(columns))
+		for _, c := range columns {
+			if invalidIdentifier.MatchString(c) {
+				log.Warn("invalid identifier: ", c)
+				continue
+			}
+			// TODO: fail fast if there are duplicate column names
+			validColumns = append(validColumns, q.buildColumn(c, true))
+		}
+		if len(validColumns) > 0 {
+			return strings.Join(validColumns, ",")
+		}
 	}
-
-	columns := strings.Split(selects[0], ",")
-	for i, c := range columns {
-		columns[i] = q.buildColumn(c, true)
-	}
-	// TODO: fail fast if there are duplicate column names
-	return strings.Join(columns, ",")
+	return "*"
 }
 
 // OrderQuery returns sql order query string
@@ -92,12 +101,12 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 			}
 			queryBuilder.WriteString(fmt.Sprintf(" IN (%s)", strings.Join(placeholders, ",")))
 		} else if op == "is" {
-			if strings.ToLower(val) == "true" || strings.ToLower(val) == "false" ||
-				strings.ToLower(val) == "null" || strings.ToLower(val) == "not null" {
+			if strings.EqualFold(val, "true") || strings.EqualFold(val, "false") ||
+				strings.EqualFold(val, "null") {
 				queryBuilder.WriteString(operator)
 				queryBuilder.WriteString(val)
 			} else {
-				log.Warnf("unsupported is values: %s", val)
+				log.Warnf("unsupported is value: %s", val)
 			}
 		} else {
 			queryBuilder.WriteString(operator)

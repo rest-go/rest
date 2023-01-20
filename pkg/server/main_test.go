@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/rest-go/auth"
 )
 
 const (
@@ -37,6 +39,25 @@ CREATE TABLE IF NOT EXISTS "invoices"
                 ON DELETE NO ACTION ON UPDATE NO ACTION
 );
 CREATE INDEX [IFK_InvoiceCustomerId] ON "invoices" ([CustomerId]);
+
+DROP TABLE IF EXISTS "auth_policies";
+CREATE TABLE IF NOT EXISTS "auth_policies"
+(
+	id INTEGER PRIMARY KEY,
+	description VARCHAR(256) NOT NULL,
+	table_name VARCHAR(128) NOT NULL,
+	action VARCHAR(16) NOT NULL,
+	expression VARCHAR(128) NOT NULL
+);
+INSERT INTO auth_policies VALUES (1, "d", "articles", "all", "userid=auth_user.id");
+
+DROP TABLE IF EXISTS "articles";
+CREATE TABLE IF NOT EXISTS "articles"
+(
+    [Id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    [Title] NVARCHAR(40)  NOT NULL,
+    [UserID] INTEGER  NOT NULL
+);
 `
 )
 
@@ -47,6 +68,7 @@ func TestMain(m *testing.M) {
 	if _, err := testServer.db.ExecQuery(context.Background(), setupSQL); err != nil {
 		log.Fatal(err)
 	}
+	testServer.Close()
 
 	// reinitialize server to get latest meta data
 	testServer = New(&DBConfig{URL: "sqlite://ci.db"})
@@ -93,13 +115,30 @@ func setupData() error {
 	if err != nil || code != http.StatusOK {
 		return fmt.Errorf("failed to insert invoices, err: %w, code: %d, data: %v", err, code, data)
 	}
+
+	body = strings.NewReader(`{
+		"Id": 1,
+		"Title": "title",
+		"UserID": 1
+	}`)
+	code, data, err = request(http.MethodPost, "/articles", body)
+	if err != nil || code != http.StatusOK {
+		return fmt.Errorf("failed to insert articles, err: %w, code: %d, data: %v", err, code, data)
+	}
 	return nil
 }
 
 func request(method, target string, body io.Reader) (code int, resData any, err error) {
+	return requestHandler(testServer, "", method, target, body)
+}
+
+func requestHandler(h http.Handler, token, method, target string, body io.Reader) (code int, resData any, err error) {
 	req := httptest.NewRequest(method, target, body)
+	if token != "" {
+		req.Header.Add(auth.AuthTokenHeader, token)
+	}
 	w := httptest.NewRecorder()
-	testServer.ServeHTTP(w, req)
+	h.ServeHTTP(w, req)
 	res := w.Result()
 	defer res.Body.Close()
 	data, err := io.ReadAll(res.Body)

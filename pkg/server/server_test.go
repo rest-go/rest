@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rest-go/auth"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,7 @@ func TestServer(t *testing.T) {
 	t.Run("invalid table", func(t *testing.T) {
 		code, _, err := request(http.MethodGet, "/invalid_table_name", nil)
 		assert.Nil(t, err)
-		assert.Equal(t, http.StatusBadRequest, code)
+		assert.Equal(t, http.StatusNotFound, code)
 	})
 
 	t.Run("invalid method", func(t *testing.T) {
@@ -202,8 +203,53 @@ func TestServerCount(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	count = data.(float64)
 	assert.Equal(t, float64(2), count, data)
+
+	code, data, err = request(http.MethodGet, "/invoices?id=eq.1&count", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
+	count = data.(float64)
+	assert.Equal(t, float64(1), count, data)
 }
 
 func TestServerAuth(t *testing.T) {
+	restAuth, err := auth.New("sqlite://ci.db", []byte("test-secret"))
 
+	assert.Nil(t, err)
+	s := New(&DBConfig{URL: "sqlite://ci.db"}, EnableAuth(true))
+	defer s.Close()
+	authServer := restAuth.Middleware(s)
+
+	code, _, err := requestHandler(authServer, "", http.MethodGet, "/articles", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusUnauthorized, code)
+
+	code, _, err = requestHandler(authServer, "", http.MethodGet, "/articles?mine", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusUnauthorized, code)
+
+	token, err := auth.GenJWTToken([]byte("test-secret"), map[string]any{"user_id": 1})
+	if err != nil {
+		t.Error(err)
+	}
+	code, _, err = requestHandler(authServer, token, http.MethodGet, "/articles", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
+
+	body := strings.NewReader(`{
+		"title": "I'm a title"
+	}`)
+	code, _, err = requestHandler(authServer, token, http.MethodPost, "/articles", body)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
+
+	body = strings.NewReader(`{
+		"title": "I'm another title"
+	}`)
+	code, _, err = requestHandler(authServer, token, http.MethodPut, "/articles/1", body)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
+
+	code, _, err = requestHandler(authServer, token, http.MethodDelete, "/articles/1", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
 }

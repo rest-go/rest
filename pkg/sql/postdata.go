@@ -111,7 +111,7 @@ func (pd *PostData) ValuesQuery() (*ValuesQuery, error) {
 // TODO: bulk update
 func (pd *PostData) SetQuery(index uint) (*SetQuery, error) {
 	if len(pd.objects) != 1 {
-		return nil, errors.New("wrong set data")
+		return nil, errors.New("bulk update is not supported")
 	}
 
 	data := pd.objects[0]

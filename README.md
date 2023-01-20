@@ -11,8 +11,9 @@ Visit https://rest-go.com for the full documentation, examples, and guides.
 ## Getting Started
 
 ### Start with Docker
+
 run the server and connect to an existing database
-``` bash
+```bash
 # connect to postgres
 docker run -p 3000:3000 restgo/rest -db.url "postgres://user:passwd@localhost:5432/db"
 
@@ -21,9 +22,10 @@ docker run -p 3000:3000 -v $(pwd):/data restgo/rest -db.url "sqlite:///data/my.d
 ```
 
 ### Use API
+
 Assume there is a `todos` table in the database with `id`, and `title` fields:
 
-``` bash
+```bash
 # Create a todo item
 curl -XPOST "localhost:3000/todos" -d '{"title": "setup api server", "done": false}'
 
@@ -40,11 +42,13 @@ curl -XDELETE "localhost:3000/todos/1"
 ## Use the binary
 
 ### Precompiled binaries
+
 Precompiled binaries for released versions are available on the [Releases page](https://github.com/rest-go/rest/releases), download it to your local machine, and running it directly is the fastest way to use Rest.
 
 ### Go install
+
 If you are familiar with Golang, you can use go install
-``` bash
+```bash
 go install github.com/rest-go/rest
 ```
 
@@ -60,7 +64,7 @@ It also works to embed the rest server into an existing Go HTTP server
 go get github.com/rest-go/rest
 ```
 
-``` go
+```go
 package main
 
 import (
