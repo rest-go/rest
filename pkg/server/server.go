@@ -218,6 +218,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sql.URLQuer
 	var data sql.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
+		log.Warnf("failed to parse post json data: %v", err)
 		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to parse post json data, %v", err),
@@ -229,6 +230,7 @@ func (s *Server) create(r *http.Request, tableName string, urlQuery *sql.URLQuer
 	}
 	valuesQuery, err := data.ValuesQuery()
 	if err != nil {
+		log.Warnf("failed to generate values query %v", err)
 		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to prepare values query, %v", err),
@@ -304,6 +306,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sql.URLQuer
 	var data sql.PostData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
+		log.Warnf("failed to parse update json data: %v", err)
 		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to parse update json data, %v", err),
@@ -311,6 +314,7 @@ func (s *Server) update(r *http.Request, tableName string, urlQuery *sql.URLQuer
 	}
 	setQuery, err := data.SetQuery(1)
 	if err != nil {
+		log.Warnf("failed to generate set query: %v", err)
 		return &j.Response{
 			Code: http.StatusBadRequest,
 			Msg:  fmt.Sprintf("failed to prepare set query, %v", err),

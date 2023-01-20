@@ -39,6 +39,7 @@ func (q *URLQuery) SelectQuery() string {
 	for i, c := range columns {
 		columns[i] = q.buildColumn(c, true)
 	}
+	// TODO: fail fast if there are duplicate column names
 	return strings.Join(columns, ",")
 }
 
@@ -90,6 +91,14 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 				index++
 			}
 			queryBuilder.WriteString(fmt.Sprintf(" IN (%s)", strings.Join(placeholders, ",")))
+		} else if op == "is" {
+			if strings.ToLower(val) == "true" || strings.ToLower(val) == "false" ||
+				strings.ToLower(val) == "null" || strings.ToLower(val) == "not null" {
+				queryBuilder.WriteString(operator)
+				queryBuilder.WriteString(val)
+			} else {
+				log.Warnf("unsupported is values: %s", val)
+			}
 		} else {
 			queryBuilder.WriteString(operator)
 			queryBuilder.WriteString("?")

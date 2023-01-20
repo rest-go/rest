@@ -111,6 +111,7 @@ var (
 		"lte":   " <= ",
 		"like":  " like ",
 		"ilike": " ilike ",
+		"is":    " is ",
 		"in":    " in ",
 		"cs":    " @> ",
 		"cd":    " <@ ",

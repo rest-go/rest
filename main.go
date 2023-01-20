@@ -10,9 +10,11 @@ import (
 	"github.com/rest-go/rest/pkg/server"
 )
 
+const defaultAddr = ":3000"
+
 func parseConfig() *Config {
-	addr := flag.String("addr", ":3000", "listen addr")
-	url := flag.String("db.url", "", "db url")
+	addr := flag.String("addr", "", "listen addr")
+	url := flag.String("db.url", "", "database url")
 	cfgPath := flag.String("config", "", "path to config file")
 	flag.Parse()
 
@@ -24,8 +26,11 @@ func parseConfig() *Config {
 			log.Fatal(err)
 		}
 	}
-	if cfg.Addr == "" {
+
+	if *addr != "" {
 		cfg.Addr = *addr
+	} else if cfg.Addr == "" {
+		cfg.Addr = defaultAddr
 	}
 	if *url != "" {
 		cfg.DB.URL = *url
