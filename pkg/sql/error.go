@@ -92,7 +92,7 @@ func sqliteErrCodeToHTTPCode(code int) int {
 
 // myErrCodeToHTTPCode converts MySQL Error to HTTP code
 func myErrCodeToHTTPCode(code int) int {
-	switch code {
+	switch code { //nolint:gocritic
 	case MYErrNoDefaultForField:
 		return http.StatusBadRequest
 	}

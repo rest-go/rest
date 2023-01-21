@@ -34,11 +34,6 @@ type DB struct {
 	DriverName string
 }
 
-func New(db *stdSQL.DB, driverName string) *DB {
-	dbb := &DB{DB: db, DriverName: driverName}
-	return dbb
-}
-
 // Open connects to database by specify database url and ping it
 func Open(url string) (*DB, error) {
 	parts := strings.SplitN(url, "://", 2)

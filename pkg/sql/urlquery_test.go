@@ -41,7 +41,8 @@ func TestURLQueryJSON(t *testing.T) {
 		t.Run(test.driver+" select", func(t *testing.T) {
 			v := url.Values{"select": []string{test.jsonPath}}
 			q := NewURLQuery(v, test.driver)
-			query := q.SelectQuery()
+			query, err := q.SelectQuery()
+			assert.Nil(t, err)
 			assert.Equal(t, test.selectQuery, query)
 		})
 		t.Run(test.driver+" where", func(t *testing.T) {
@@ -55,16 +56,40 @@ func TestURLQueryJSON(t *testing.T) {
 	}
 }
 
+func TestURLQuerySet(t *testing.T) {
+	q := URLQuery{values: url.Values{}}
+	q.Set("a", "b")
+	assert.Equal(t, []string{"b"}, q.values["a"])
+}
+
 func TestURLQuerySelectQuery(t *testing.T) {
 	v := url.Values{}
 	q := NewURLQuery(v, "")
-	query := q.SelectQuery()
+	query, err := q.SelectQuery()
+	assert.Nil(t, err)
 	assert.Equal(t, "*", query)
 
 	v = url.Values{"select": []string{"a,b"}}
 	q = NewURLQuery(v, "")
-	query = q.SelectQuery()
+	query, err = q.SelectQuery()
+	assert.Nil(t, err)
 	assert.Equal(t, "a,b", query)
+
+	t.Run("allowed func", func(t *testing.T) {
+		v := url.Values{"select": []string{"MAX(a)"}}
+		q := NewURLQuery(v, "")
+		query, err := q.SelectQuery()
+		assert.Nil(t, err)
+		assert.Equal(t, "MAX(a) AS max", query)
+	})
+
+	t.Run("not allowed func", func(t *testing.T) {
+		v := url.Values{"select": []string{"setting(a)"}}
+		q := NewURLQuery(v, "")
+		query, err := q.SelectQuery()
+		assert.NotNil(t, err)
+		assert.Equal(t, "", query)
+	})
 }
 
 func TestURLQueryOrderQuery(t *testing.T) {
@@ -77,6 +102,11 @@ func TestURLQueryOrderQuery(t *testing.T) {
 	q = NewURLQuery(v, "")
 	query = q.OrderQuery()
 	assert.Equal(t, "a desc,b asc", query)
+
+	v = url.Values{"order": []string{"a.desc,b.asc;xxx"}}
+	q = NewURLQuery(v, "")
+	query = q.OrderQuery()
+	assert.Equal(t, "", query)
 }
 
 // WhereQuery returns sql and args for where clause
@@ -90,8 +120,17 @@ func TestURLQueryWhereQuery(t *testing.T) {
 		assert.Equal(t, 0, len(args))
 	})
 
-	t.Run("skip invalid query", func(t *testing.T) {
-		v := url.Values{"select": []string{"*"}, "count": []string{""}, "noop": []string{"noop.1"}, "invalival": []string{"a.b.c=1"}}
+	t.Run("skip no op query", func(t *testing.T) {
+		v := url.Values{"select": []string{"*"}, "count": []string{""}, "noop": []string{"noop.1"}, "invalid_val": []string{"a.b.c=1"}}
+		q := NewURLQuery(v, "sqlite")
+		index, query, args := q.WhereQuery(1)
+		assert.Equal(t, uint(1), index)
+		assert.Equal(t, "", query)
+		assert.Equal(t, 0, len(args))
+	})
+
+	t.Run("skip invalid character", func(t *testing.T) {
+		v := url.Values{"select": []string{"a;xxx"}}
 		q := NewURLQuery(v, "sqlite")
 		index, query, args := q.WhereQuery(1)
 		assert.Equal(t, uint(1), index)
@@ -179,4 +218,14 @@ func TestURLQueryIsSingular(t *testing.T) {
 	v = url.Values{"singular": []string{"1"}}
 	q = NewURLQuery(v, "")
 	assert.True(t, q.IsSingular())
+}
+
+func TestURLQueryIsMine(t *testing.T) {
+	v := url.Values{}
+	q := NewURLQuery(v, "")
+	assert.False(t, q.IsMine())
+
+	v = url.Values{"mine": []string{"1"}}
+	q = NewURLQuery(v, "")
+	assert.True(t, q.IsMine())
 }

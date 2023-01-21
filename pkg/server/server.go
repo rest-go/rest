@@ -134,6 +134,7 @@ func (s *Server) getPolicies() map[string]map[string]string {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Infof("%s %s", r.Method, r.URL.RequestURI())
 	path := strings.TrimPrefix(r.URL.Path, s.prefix)
 	tableName := strings.Trim(path, "/")
 	if tableName == "" {
@@ -370,7 +371,14 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sql.URLQuery, 
 	}
 
 	var queryBuilder strings.Builder
-	selects := urlQuery.SelectQuery()
+	selects, err := urlQuery.SelectQuery()
+	if err != nil {
+		log.Errorf("invalid select query %v", urlQuery)
+		return &j.Response{
+			Code: http.StatusBadRequest,
+			Msg:  err.Error(),
+		}
+	}
 	queryBuilder.WriteString(fmt.Sprintf("SELECT %s FROM %s", selects, tableName))
 	_, whereQuery, args := urlQuery.WhereQuery(1)
 	if whereQuery != "" {

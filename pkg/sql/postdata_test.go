@@ -7,6 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestPostDataSet(t *testing.T) {
+	q := PostData{objects: []map[string]any{
+		{
+			"a": "b",
+		},
+		{
+			"c": "d",
+		},
+	}}
+	q.Set("user_id", 1)
+	for _, object := range q.objects {
+		assert.Equal(t, int(1), object["user_id"].(int))
+	}
+}
 func TestPostDataValuesQuery(t *testing.T) {
 	tests := []struct {
 		name          string

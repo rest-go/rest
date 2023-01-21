@@ -91,7 +91,7 @@ func TestDBExec(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestDBFetch(t *testing.T) {
+func TestDBFetchData(t *testing.T) {
 	db, err := setupDB()
 	if err != nil {
 		t.Fatal(err)
@@ -104,4 +104,26 @@ func TestDBFetch(t *testing.T) {
 	objects, err := db.FetchData(ctx, query, args...)
 	assert.Equal(t, 1, len(objects))
 	assert.Nil(t, err)
+}
+
+func TestDBFetchOne(t *testing.T) {
+	db, err := setupDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	query := "SELECT * FROM customers WHERE id=$1"
+	args := []any{1}
+	_, err = db.FetchOne(ctx, query, args...)
+	assert.Nil(t, err)
+
+	args = []any{3}
+	_, err = db.FetchOne(ctx, query, args...)
+	assert.Contains(t, err.Error(), "not found")
+
+	query = "SELECT * FROM customers"
+	_, err = db.FetchOne(ctx, query)
+	assert.Contains(t, err.Error(), "multiple rows found")
 }

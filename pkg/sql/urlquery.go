@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -10,13 +11,26 @@ import (
 	"github.com/rest-go/rest/pkg/log"
 )
 
-var invalidIdentifier = regexp.MustCompile("[ ;'\"]")
-
-var jsonPathFunc = map[string]func(column string) (jsonPath, asName string){
-	"postgres": buildPGJSONPath,
-	"mysql":    buildMysqlJSONPath,
-	"sqlite":   buildSqliteJSONPath,
-}
+var (
+	allowedFunctions = []string{
+		// math functions
+		"abs", "avg", "ceil", "div", "exp", "floor", "gcd", "lcm", "ln", "log",
+		"mod", "power", "round", "sign", "sqrt", "trunc", "max", "min", "sum",
+		// date functions
+		"date", "date_format", "date_part", "date_trunc", "extract", "hour",
+		"minute", "month", "second", "utctimestamp", "weekofday", "year",
+		// string functions
+		"bit_length", "chr", "char_length", "left", "length", "ord", "trim",
+	}
+	allowedFunctionExp = regexp.MustCompile(strings.Join(allowedFunctions, "|"))
+	funcExp            = regexp.MustCompile(`(.*?)\(`)
+	invalidIdentifier  = regexp.MustCompile("[ ;'\"]")
+	jsonPathFunc       = map[string]func(column string) (jsonPath, asName string){
+		"postgres": buildPGJSONPath,
+		"mysql":    buildMysqlJSONPath,
+		"sqlite":   buildSqliteJSONPath,
+	}
+)
 
 type URLQuery struct {
 	values url.Values
@@ -32,24 +46,27 @@ func (q *URLQuery) Set(key, value string) {
 }
 
 // SelectQuery return sql projection string
-func (q *URLQuery) SelectQuery() string {
+func (q *URLQuery) SelectQuery() (string, error) {
 	selects := q.values["select"]
-	if len(selects) > 0 {
-		columns := strings.Split(selects[0], ",")
-		validColumns := make([]string, 0, len(columns))
-		for _, c := range columns {
-			if invalidIdentifier.MatchString(c) {
-				log.Warn("invalid identifier: ", c)
-				continue
-			}
-			// TODO: fail fast if there are duplicate column names
-			validColumns = append(validColumns, q.buildColumn(c, true))
-		}
-		if len(validColumns) > 0 {
-			return strings.Join(validColumns, ",")
-		}
+	if len(selects) == 0 {
+		return "*", nil
 	}
-	return "*"
+
+	selectVal := selects[0]
+	if invalidIdentifier.MatchString(selectVal) {
+		return "", errors.New("invalid character found")
+	}
+
+	columns := strings.Split(selectVal, ",")
+	for i, c := range columns {
+		// TODO: fail fast if there are duplicate column names
+		column, err := q.buildColumn(c, true)
+		if err != nil {
+			return "", err
+		}
+		columns[i] = column
+	}
+	return strings.Join(columns, ","), nil
 }
 
 // OrderQuery returns sql order query string
@@ -58,6 +75,11 @@ func (q *URLQuery) OrderQuery() string {
 	if len(orders) == 0 {
 		return ""
 	}
+	if invalidIdentifier.MatchString(orders[0]) {
+		log.Warn("invalid character in order: ", orders[0])
+		return ""
+	}
+
 	return strings.ReplaceAll(orders[0], ".", " ")
 }
 
@@ -89,7 +111,10 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 			queryBuilder.WriteString(" AND ")
 		}
 
-		column := q.buildColumn(k, false)
+		column, err := q.buildColumn(k, false)
+		if err != nil {
+			return index, "", nil
+		}
 		queryBuilder.WriteString(column)
 		if op == "in" {
 			vals := strings.Split(strings.Trim(strings.Trim(val, ")"), "("), ",")
@@ -111,6 +136,8 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 		} else {
 			queryBuilder.WriteString(operator)
 			queryBuilder.WriteString("?")
+			// replace * to % for like operations
+			val = strings.ReplaceAll(val, "*", "%")
 			args = append(args, val)
 			index++
 		}
@@ -152,16 +179,32 @@ func (q *URLQuery) IsMine() bool {
 	return ok
 }
 
-func (q *URLQuery) buildColumn(c string, as bool) string {
+func (q *URLQuery) buildColumn(c string, as bool) (string, error) {
 	columnName := c
 	asName := ""
+
+	// JSON path
 	if strings.Contains(c, "->") {
 		columnName, asName = jsonPathFunc[q.driver](c)
 	}
+
+	// function
+	if strings.Contains(c, "(") {
+		for _, match := range funcExp.FindAllStringSubmatch(columnName, -1) {
+			funcName := strings.ToLower(match[1])
+			if !allowedFunctionExp.MatchString(funcName) {
+				return "", errors.New("function not allowed")
+			}
+			if asName == "" {
+				asName = funcName
+			}
+		}
+	}
+
 	if as && asName != "" {
 		columnName += fmt.Sprintf(" AS %s", asName)
 	}
-	return columnName
+	return columnName, nil
 }
 
 func buildMysqlJSONPath(column string) (jsonPath, asName string) {

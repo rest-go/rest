@@ -26,7 +26,8 @@ const (
 			[Data] JSON NOT NULL
 		);
 		INSERT INTO customers VALUES
-		 (1, "name", 10.2, 1, 2, 3, 4, true, false, 1.0, 2.0, 3.0, '{"a":1, "b":"hello", "c":[1,2,3], "d":{"foo":"bar"}}');
+		(1, "name", 10.2, 1, 2, 3, 4, true, false, 1.0, 2.0, 3.0, '{"a":1, "b":"hello", "c":[1,2,3], "d":{"foo":"bar"}}'),
+		(2, "name2", 10.2, 1, 2, 3, 4, true, false, 1.0, 2.0, 3.0, '{"a":1, "b":"hello", "c":[1,2,3], "d":{"foo":"bar"}}');
 	`
 )
 
