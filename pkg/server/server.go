@@ -183,9 +183,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		user := auth.GetUser(r)
 		hasPerm, userIDColumn := user.HasPerm(tableName, action, s.getPolicies())
 		if !hasPerm {
-			res := &j.Response{
-				Code: http.StatusUnauthorized,
-				Msg:  "unauthorized",
+			var res *j.Response
+			if user.IsAnonymous() {
+				res = &j.Response{
+					Code: http.StatusUnauthorized,
+					Msg:  "login required",
+				}
+			} else {
+				res = &j.Response{
+					Code: http.StatusForbidden,
+					Msg:  "unauthorized",
+				}
 			}
 			j.Write(w, res)
 			return

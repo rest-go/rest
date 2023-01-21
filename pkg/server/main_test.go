@@ -135,7 +135,7 @@ func request(method, target string, body io.Reader) (code int, resData any, err 
 func requestHandler(h http.Handler, token, method, target string, body io.Reader) (code int, resData any, err error) {
 	req := httptest.NewRequest(method, target, body)
 	if token != "" {
-		req.Header.Add(auth.AuthTokenHeader, token)
+		req.Header.Add(auth.AuthorizationHeader, "Bearer "+token)
 	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
