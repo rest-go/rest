@@ -43,12 +43,14 @@ func main() {
 	restServer := server.New(&cfg.DB, server.EnableAuth(cfg.Auth.Enabled))
 	if cfg.Auth.Enabled {
 		log.Info("auth is enabled")
-		restAuth, err := auth.New(cfg.DB.URL, []byte(cfg.Auth.Secret))
+		authHandler, err := auth.NewHandler(cfg.DB.URL, []byte(cfg.Auth.Secret))
 		if err != nil {
 			log.Fatal("initialize auth error ", err)
 		}
-		http.Handle("/auth/", restAuth)
-		http.Handle("/", restAuth.Middleware(restServer))
+		http.Handle("/auth/", authHandler)
+
+		middleware := auth.NewMiddleware([]byte(cfg.Auth.Secret))
+		http.Handle("/", middleware(restServer))
 	} else {
 		http.Handle("/", restServer)
 	}

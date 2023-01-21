@@ -12,11 +12,13 @@ func main() {
 	dbURL := "sqlite://my.db"
 	jwtSecret := "my-secret"
 	s := server.New(&server.DBConfig{URL: dbURL}, server.EnableAuth(true))
-	restAuth, err := auth.New(dbURL, []byte(jwtSecret))
+	authHandler, err := auth.NewHandler(dbURL, []byte(jwtSecret))
 	if err != nil {
 		log.Fatal("initialize auth error ", err)
 	}
-	http.Handle("/auth/", restAuth)
-	http.Handle("/", restAuth.Middleware(s))
+	http.Handle("/auth/", authHandler)
+
+	middleware := auth.NewMiddleware([]byte(jwtSecret))
+	http.Handle("/", middleware(s))
 	log.Fatal(http.ListenAndServe(":3001", s)) //nolint:gosec
 }

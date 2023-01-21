@@ -212,12 +212,11 @@ func TestServerCount(t *testing.T) {
 }
 
 func TestServerAuth(t *testing.T) {
-	restAuth, err := auth.New("sqlite://ci.db", []byte("test-secret"))
-
-	assert.Nil(t, err)
 	s := New(&DBConfig{URL: "sqlite://ci.db"}, EnableAuth(true))
 	defer s.Close()
-	authServer := restAuth.Middleware(s)
+
+	middleware := auth.NewMiddleware([]byte("test-secret"))
+	authServer := middleware(s)
 
 	code, _, err := requestHandler(authServer, "", http.MethodGet, "/articles", nil)
 	assert.Nil(t, err)
