@@ -95,4 +95,3 @@ func main() {
 - [ ] Resource Embedding(one-to-one, one-to-many)
 - [ ] Logical operators(and, or)
 - [ ] Open API document
-- [ ] Web UI management
