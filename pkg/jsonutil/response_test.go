@@ -26,7 +26,6 @@ func TestWrite(t *testing.T) {
 		assert.Equal(t, rr.Code, http.StatusOK)
 		assert.Equal(t, rr.Body.String(), "{\"hello\":\"world\"}\n")
 	})
-
 }
 
 func TestNewErrResponse(t *testing.T) {

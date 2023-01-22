@@ -25,5 +25,4 @@ func TestLog(t *testing.T) {
 			Tracef("%s", "hello")
 		})
 	}
-
 }

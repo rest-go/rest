@@ -6,7 +6,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgx/v5 v5.2.0
-	github.com/rest-go/auth v0.0.0-20230112024519-532b3a5ad3a0
+	github.com/rest-go/auth v0.1.0
 	github.com/stretchr/testify v1.8.1
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.20.0
@@ -43,5 +43,3 @@ require (
 	modernc.org/token v1.0.1 // indirect
 
 )
-
-replace github.com/rest-go/auth v0.0.0-20230112024519-532b3a5ad3a0 => /Users/hao/go/src/github.com/rest-go/auth

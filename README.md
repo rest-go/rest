@@ -1,5 +1,4 @@
 # Rest
-Logo
 
 ![ci](https://github.com/rest-go/rest/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/rest-go/rest/branch/main/graph/badge.svg?token=T38FWXMVY1)](https://codecov.io/gh/rest-go/rest)
