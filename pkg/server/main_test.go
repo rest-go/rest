@@ -50,11 +50,11 @@ CREATE TABLE IF NOT EXISTS "auth_policies"
 	expression VARCHAR(128) NOT NULL
 );
 INSERT INTO auth_policies VALUES (1, "d", "articles", "all", "userid=auth_user.id");
+INSERT INTO auth_policies VALUES (2, "d", "auth_policies", "all", "auth_user.is_admin");
 
 DROP TABLE IF EXISTS "articles";
 CREATE TABLE IF NOT EXISTS "articles"
 (
-    [Id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     [Title] NVARCHAR(40)  NOT NULL,
     [UserID] INTEGER  NOT NULL
 );
@@ -117,7 +117,6 @@ func setupData() error {
 	}
 
 	body = strings.NewReader(`{
-		"Id": 1,
 		"Title": "title",
 		"UserID": 1
 	}`)
