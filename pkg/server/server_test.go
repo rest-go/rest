@@ -67,6 +67,27 @@ func TestServer_Create_Delete(t *testing.T) {
 		assert.Equal(t, http.StatusOK, code)
 	})
 
+	t.Run("bulk with un-uniform keys", func(t *testing.T) {
+		body := strings.NewReader(`[
+			{
+				"Id": 100,
+				"CustomerId":100,
+				"InvoiceDate": "2023-01-02 03:04:05",
+				"BillingAddress": "I'm an address",
+				"Total":3.1415926,
+				"Data": "{\"Country\": \"I'm an country\", \"PostalCode\":1234}"
+			},
+			{
+				"Id": 101,
+				"InvoiceDate": "2023-01-02 03:04:05",
+				"Data": "{\"Country\": \"I'm an country\", \"PostalCode\":1234}"
+			}
+		]`)
+		code, _, err := request(http.MethodPost, "/invoices", body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusBadRequest, code)
+	})
+
 	t.Run("bulk", func(t *testing.T) {
 		body := strings.NewReader(`[
 			{
@@ -89,6 +110,12 @@ func TestServer_Create_Delete(t *testing.T) {
 		code, _, err := request(http.MethodPost, "/invoices", body)
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, code)
+	})
+
+	t.Run("delete without conditions is not allowed unless explicitly", func(t *testing.T) {
+		code, _, err := request(http.MethodDelete, "/customers", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusBadRequest, code)
 	})
 
 	t.Run("delete", func(t *testing.T) {
@@ -119,6 +146,18 @@ func TestServer_Read(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, code)
 		assertEqualField(t, "1", data, "Id")
+	})
+
+	t.Run("no primary key", func(t *testing.T) {
+		code, _, err := request(http.MethodGet, "/articles/1", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("invalid select", func(t *testing.T) {
+		code, _, err := request(http.MethodGet, "/articles?select=title%3b", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusBadRequest, code)
 	})
 
 	t.Run("one singular", func(t *testing.T) {
@@ -175,6 +214,23 @@ func TestServerUpdate(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, code)
 	assertEqualField(t, newName, data, "FirstName")
+
+	t.Run("update without conditions is not allowed unless explicitly", func(t *testing.T) {
+		newName := "update without condition"
+		body := strings.NewReader(fmt.Sprintf(`{
+			"FirstName": %q
+		}`, newName))
+		code, _, err := request(http.MethodPut, "/customers", body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusBadRequest, code)
+
+		body = strings.NewReader(fmt.Sprintf(`{
+			"FirstName": %q
+		}`, newName))
+		code, _, err = request(http.MethodPut, "/customers?1=eq.1", body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
+	})
 }
 
 func TestServerDebug(t *testing.T) {
@@ -218,37 +274,59 @@ func TestServerAuth(t *testing.T) {
 	middleware := auth.NewMiddleware([]byte("test-secret"))
 	authServer := middleware(s)
 
-	code, _, err := requestHandler(authServer, "", http.MethodGet, "/articles", nil)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusUnauthorized, code)
+	t.Run("anonymous user doesn't have permission on articles", func(t *testing.T) {
+		code, _, err := requestHandler(authServer, "", http.MethodGet, "/articles", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusUnauthorized, code)
 
-	code, _, err = requestHandler(authServer, "", http.MethodGet, "/articles?mine", nil)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusUnauthorized, code)
+		code, _, err = requestHandler(authServer, "", http.MethodGet, "/articles?mine", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusUnauthorized, code)
+	})
 
-	token, err := auth.GenJWTToken([]byte("test-secret"), map[string]any{"user_id": 1})
-	if err != nil {
-		t.Error(err)
-	}
-	code, _, err = requestHandler(authServer, token, http.MethodGet, "/articles", nil)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, code)
+	t.Run("authenticated user has permission on all methods", func(t *testing.T) {
+		token, err := auth.GenJWTToken([]byte("test-secret"), map[string]any{"user_id": 1})
+		if err != nil {
+			t.Error(err)
+		}
+		code, _, err := requestHandler(authServer, token, http.MethodGet, "/articles", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 
-	body := strings.NewReader(`{
+		body := strings.NewReader(`{
 		"title": "I'm a title"
 	}`)
-	code, _, err = requestHandler(authServer, token, http.MethodPost, "/articles", body)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, code)
+		code, _, err = requestHandler(authServer, token, http.MethodPost, "/articles", body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 
-	body = strings.NewReader(`{
+		body = strings.NewReader(`{
 		"title": "I'm another title"
 	}`)
-	code, _, err = requestHandler(authServer, token, http.MethodPut, "/articles/1", body)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, code)
+		code, _, err = requestHandler(authServer, token, http.MethodPut, "/articles?title=eq.title", body)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
 
-	code, _, err = requestHandler(authServer, token, http.MethodDelete, "/articles/1", nil)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, code)
+		code, _, err = requestHandler(authServer, token, http.MethodDelete, "/articles?title=eq.title", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
+	})
+
+	t.Run("only admin users have permission on auth_policies", func(t *testing.T) {
+		token, err := auth.GenJWTToken([]byte("test-secret"), map[string]any{"user_id": 1})
+		if err != nil {
+			t.Error(err)
+		}
+		code, _, err := requestHandler(authServer, token, http.MethodGet, "/auth_policies", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusForbidden, code)
+
+		token, err = auth.GenJWTToken([]byte("test-secret"), map[string]any{"user_id": 1, "is_admin": true})
+		if err != nil {
+			t.Error(err)
+		}
+		code, _, err = requestHandler(authServer, token, http.MethodGet, "/articles?mine", nil)
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusOK, code)
+	})
 }
