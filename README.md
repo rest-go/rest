@@ -79,18 +79,3 @@ func main() {
 	log.Fatal(http.ListenAndServe(":3001", nil))
 }
 ```
-
-## Features
-- [x] CRUD
-- [x] Page
-- [x] operators (eq, lt, gt, etc.)
-- [x] select fields
-- [x] order by
-- [x] count
-- [x] json 
-- [x] Authentication and Authorization
-
-## Road map
-- [ ] Resource Embedding(one-to-one, one-to-many)
-- [ ] Logical operators(and, or)
-- [ ] Open API document
