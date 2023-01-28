@@ -2,6 +2,8 @@
 
 ![ci](https://github.com/rest-go/rest/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/rest-go/rest/branch/main/graph/badge.svg?token=T38FWXMVY1)](https://codecov.io/gh/rest-go/rest)
+[![docker](https://img.shields.io/docker/pulls/restgo/rest)](https://hub.docker.com/r/restgo/rest)
+[![chat](https://img.shields.io/badge/chat-discord-brightgreen)](https://discord.gg/vawh9RSzQ9)
 
 Rest serves a fully RESTful API from any SQL database, PostgreSQL, MySQL, and SQLite are supported for now.
 
