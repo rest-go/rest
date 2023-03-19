@@ -6,7 +6,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgx/v5 v5.2.0
-	github.com/rest-go/auth v0.1.0
+	github.com/rest-go/auth v0.1.1
 	github.com/stretchr/testify v1.8.1
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.20.0

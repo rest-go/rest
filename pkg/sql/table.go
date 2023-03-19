@@ -14,7 +14,7 @@ type Column struct {
 }
 
 func (c *Column) String() string {
-	return fmt.Sprintf("%s %s notnull:%t, pk:%t", c.ColumnName, c.DataType, c.NotNull, c.Pk)
+	return fmt.Sprintf("%s %s", c.ColumnName, c.DataType)
 }
 
 // Table represents a table in database with name and columns

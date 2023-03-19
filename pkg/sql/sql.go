@@ -63,8 +63,12 @@ func Open(url string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ping db error: %v", err)
 	}
-	dbb := &DB{DB: db, DriverName: driverName}
-	return dbb, err
+
+	return &DB{DB: db, DriverName: driverName}, nil
+}
+
+func (db *DB) Close() {
+	db.DB.Close()
 }
 
 // fetchColumns fetch columns for a table
