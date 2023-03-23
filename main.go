@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rest-go/auth"
+
 	"github.com/rest-go/rest/pkg/log"
 	"github.com/rest-go/rest/pkg/server"
 	"github.com/rest-go/rest/pkg/sql"

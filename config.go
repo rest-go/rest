@@ -3,8 +3,9 @@ package main
 import (
 	"os"
 
-	"github.com/rest-go/rest/pkg/server"
 	"gopkg.in/yaml.v3"
+
+	"github.com/rest-go/rest/pkg/server"
 )
 
 type Config struct {
