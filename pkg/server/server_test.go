@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rest-go/auth"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/rest-go/rest/pkg/auth"
 )
 
 func TestServer(t *testing.T) {

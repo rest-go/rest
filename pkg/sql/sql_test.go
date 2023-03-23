@@ -59,8 +59,10 @@ func TestDBTables(t *testing.T) {
 		}
 		db, err := Open(url)
 		assert.Nil(t, err)
-		tables := db.FetchTables()
-		t.Log("get tables: ", tables)
+		if err == nil {
+			tables := db.FetchTables()
+			t.Log("get tables: ", tables)
+		}
 	})
 
 	t.Run("sqlite", func(t *testing.T) {

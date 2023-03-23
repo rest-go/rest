@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/rest-go/auth"
+	"github.com/rest-go/rest/pkg/auth"
 	"github.com/rest-go/rest/pkg/server"
 )
 

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rest-go/auth"
+	"github.com/rest-go/rest/pkg/auth"
 	j "github.com/rest-go/rest/pkg/jsonutil"
 	"github.com/rest-go/rest/pkg/log"
 	"github.com/rest-go/rest/pkg/sql"

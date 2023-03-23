@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rest-go/auth"
+	"github.com/rest-go/rest/pkg/auth"
 )
 
 const (
