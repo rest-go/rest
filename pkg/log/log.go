@@ -29,6 +29,8 @@ var (
 func init() { //nolint:gochecknoinits
 	level := os.Getenv("REST_LOG_LEVEL")
 	switch strings.ToLower(level) {
+	case "trace":
+		logLevel = TraceLevel
 	case "error":
 		logLevel = ErrorLevel
 	case "warn":

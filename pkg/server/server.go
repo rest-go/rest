@@ -433,9 +433,9 @@ func (s *Server) get(r *http.Request, tableName string, urlQuery *sql.URLQuery, 
 				Msg:  fmt.Sprintf("expect singular data, but got %d rows", len(objects)),
 			}
 		}
-		return objects[0] // return single map[string]any
+		return objects[0]
 	}
-	return objects // return  []map[string]any
+	return objects
 }
 
 func (s *Server) count(r *http.Request, tableName string, urlQuery *sql.URLQuery) any {
