@@ -11,7 +11,7 @@ func (h SQLiteHelper) GetTablesSQL() string {
 	FROM 
     	sqlite_schema
 	WHERE 
-    	type ='table' AND 
+    	(type ='table' OR type = 'view') AND
     	name NOT LIKE 'sqlite_%';
 	`
 }

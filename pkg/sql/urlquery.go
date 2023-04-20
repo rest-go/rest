@@ -19,6 +19,7 @@ var (
 		// date functions
 		"date", "date_format", "date_part", "date_trunc", "extract", "hour",
 		"minute", "month", "second", "utctimestamp", "weekofday", "year",
+		"time", "datetime", "julianday", "unixepoch", "strftime",
 		// string functions
 		"bit_length", "chr", "char_length", "left", "length", "ord", "trim",
 	}

@@ -8,7 +8,7 @@ func (h MyHelper) GetTablesSQL() string {
 	return `
 	SELECT TABLE_NAME as name
 	FROM information_schema.TABLES
-	WHERE TABLE_TYPE LIKE 'BASE_TABLE' AND TABLE_SCHEMA=DATABASE();
+	WHERE (TABLE_TYPE = 'BASE_TABLE' OR TABLE_TYPE = 'view') AND TABLE_SCHEMA=DATABASE();
 	`
 }
 
