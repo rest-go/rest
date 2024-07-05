@@ -97,52 +97,54 @@ func (q *URLQuery) WhereQuery(index uint) (newIndex uint, query string, args []a
 		if _, ok := ReservedWords[k]; ok {
 			continue
 		}
-		vals := strings.Split(v[0], ".")
-		if len(vals) != 2 {
-			continue
-		}
-		op, val := vals[0], vals[1]
-		operator, ok := Operators[op]
-		if !ok {
-			log.Warnf("unsupported op: %s", op)
-			continue
-		}
+		for _, vv := range v {
+			vals := strings.Split(vv, ".")
+			if len(vals) != 2 {
+				continue
+			}
+			op, val := vals[0], vals[1]
+			operator, ok := Operators[op]
+			if !ok {
+				log.Warnf("unsupported op: %s", op)
+				continue
+			}
 
-		if !first {
-			queryBuilder.WriteString(" AND ")
-		}
+			if !first {
+				queryBuilder.WriteString(" AND ")
+			}
 
-		column, err := q.buildColumn(k, false)
-		if err != nil {
-			return index, "", nil
-		}
-		queryBuilder.WriteString(column)
-		if op == "in" {
-			vals := strings.Split(strings.Trim(strings.Trim(val, ")"), "("), ",")
-			placeholders := make([]string, len(vals))
-			for i, v := range vals {
-				placeholders[i] = "?"
-				args = append(args, v)
+			column, err := q.buildColumn(k, false)
+			if err != nil {
+				return index, "", nil
+			}
+			queryBuilder.WriteString(column)
+			if op == "in" {
+				vals := strings.Split(strings.Trim(strings.Trim(val, ")"), "("), ",")
+				placeholders := make([]string, len(vals))
+				for i, v := range vals {
+					placeholders[i] = "?"
+					args = append(args, v)
+					index++
+				}
+				queryBuilder.WriteString(fmt.Sprintf(" IN (%s)", strings.Join(placeholders, ",")))
+			} else if op == "is" {
+				if strings.EqualFold(val, "true") || strings.EqualFold(val, "false") ||
+					strings.EqualFold(val, "null") {
+					queryBuilder.WriteString(operator)
+					queryBuilder.WriteString(val)
+				} else {
+					log.Warnf("unsupported is value: %s", val)
+				}
+			} else {
+				queryBuilder.WriteString(operator)
+				queryBuilder.WriteString("?")
+				// replace * to % for like operations
+				val = strings.ReplaceAll(val, "*", "%")
+				args = append(args, val)
 				index++
 			}
-			queryBuilder.WriteString(fmt.Sprintf(" IN (%s)", strings.Join(placeholders, ",")))
-		} else if op == "is" {
-			if strings.EqualFold(val, "true") || strings.EqualFold(val, "false") ||
-				strings.EqualFold(val, "null") {
-				queryBuilder.WriteString(operator)
-				queryBuilder.WriteString(val)
-			} else {
-				log.Warnf("unsupported is value: %s", val)
-			}
-		} else {
-			queryBuilder.WriteString(operator)
-			queryBuilder.WriteString("?")
-			// replace * to % for like operations
-			val = strings.ReplaceAll(val, "*", "%")
-			args = append(args, val)
-			index++
+			first = false
 		}
-		first = false
 	}
 
 	return index, queryBuilder.String(), args

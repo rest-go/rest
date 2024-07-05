@@ -164,6 +164,13 @@ func TestURLQueryWhereQuery(t *testing.T) {
 		assert.Equal(t, uint(1), index)
 		assert.Equal(t, "a is null", query)
 		assert.Equal(t, 0, len(args))
+
+		v = url.Values{"a": []string{"gt.1", "lt.100"}}
+		q = NewURLQuery(v, "sqlite")
+		index, query, args = q.WhereQuery(1)
+		assert.Equal(t, uint(3), index)
+		assert.Equal(t, "a > ? AND a < ?", query)
+		assert.Equal(t, 2, len(args))
 	})
 
 	t.Run("AND", func(t *testing.T) {
