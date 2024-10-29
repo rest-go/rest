@@ -34,6 +34,10 @@ func NewHandler(dbURL string, secret []byte) (*Handler, error) {
 
 // ServeHTTP implements http.Handler interface
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		j.Write(w, nil)
+		return
+	}
 	if r.Method != http.MethodPost {
 		res := &j.Response{
 			Code: http.StatusMethodNotAllowed,
