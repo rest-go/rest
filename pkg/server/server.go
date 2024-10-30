@@ -135,10 +135,6 @@ func (s *Server) getPolicies() map[string]map[string]string {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Infof("%s %s", r.Method, r.URL.RequestURI())
-	if r.Method == http.MethodOptions {
-		j.Write(w, nil)
-		return
-	}
 	path := strings.TrimPrefix(r.URL.Path, s.prefix)
 	tableName := strings.Trim(path, "/")
 	if tableName == "" {

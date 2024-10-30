@@ -20,11 +20,6 @@ type Response struct {
 func Write(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 
-    // Whitelist any origin/headers for CORS requests
-    w.Header().Add("Access-Control-Allow-Origin", "*")
-    w.Header().Add("Access-Control-Allow-Headers", "*")
-    w.Header().Add("Access-Control-Allow-Methods", "OPTIONS")
-
 	if res, ok := data.(*Response); ok {
 		w.WriteHeader(res.Code)
 	} else {
