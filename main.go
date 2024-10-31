@@ -69,8 +69,27 @@ func main() {
 		mux.Handle("/", restServer)
 	}
 
+	var handler http.Handler = mux
 	// CORS Support
-	handler := cors.Default().Handler(mux)
+	if cfg.Cors.Enabled {
+		c := cors.New(cors.Options{
+			AllowCredentials: true,
+			AllowedOrigins:   cfg.Cors.Origins,
+			AllowedMethods: []string{
+				// Query
+				http.MethodHead,
+				http.MethodGet,
+				// Insert
+				http.MethodPost,
+				// Update
+				http.MethodPut,
+				http.MethodPatch,
+				// Delete
+				http.MethodDelete,
+			},
+		})
+		handler = c.Handler(handler)
+	}
 
 	s := &http.Server{
 		Addr:              cfg.Addr,
