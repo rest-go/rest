@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rs/cors"
+
 	"github.com/rest-go/rest/pkg/auth"
 
 	"github.com/rest-go/rest/pkg/log"
@@ -52,23 +54,47 @@ func main() {
 	}
 
 	restServer := server.New(&cfg.DB, server.EnableAuth(cfg.Auth.Enabled))
+	mux := http.NewServeMux()
 	if cfg.Auth.Enabled {
 		log.Info("auth is enabled")
 		authHandler, err := auth.NewHandler(cfg.DB.URL, []byte(cfg.Auth.Secret))
 		if err != nil {
 			log.Fatal("initialize auth error ", err)
 		}
-		http.Handle("/auth/", authHandler)
+		mux.Handle("/auth/", authHandler)
 
 		middleware := auth.NewMiddleware([]byte(cfg.Auth.Secret))
-		http.Handle("/", middleware(restServer))
+		mux.Handle("/", middleware(restServer))
 	} else {
-		http.Handle("/", restServer)
+		mux.Handle("/", restServer)
+	}
+
+	var handler http.Handler = mux
+	// CORS Support
+	if cfg.Cors.Enabled {
+		c := cors.New(cors.Options{
+			AllowCredentials: true,
+			AllowedOrigins:   cfg.Cors.Origins,
+			AllowedMethods: []string{
+				// Query
+				http.MethodHead,
+				http.MethodGet,
+				// Insert
+				http.MethodPost,
+				// Update
+				http.MethodPut,
+				http.MethodPatch,
+				// Delete
+				http.MethodDelete,
+			},
+		})
+		handler = c.Handler(handler)
 	}
 
 	s := &http.Server{
 		Addr:              cfg.Addr,
 		ReadHeaderTimeout: 3 * time.Second,
+		Handler:           handler,
 	}
 	log.Info("listen on addr: ", cfg.Addr)
 	log.Fatal(s.ListenAndServe())

@@ -3,5 +3,8 @@ db:
   url: sqlite://chinook.db
 auth:
   enabled: true
-  secret: [replace-this-to-your-own-secret]
-
+  secret: "replace-this-to-your-own-secret"
+cors:
+  enabled: true
+  origins:
+    - "example.com"

@@ -213,8 +213,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		data = s.update(r, tableName, urlQuery, authInfo)
 	case "GET":
 		data = s.get(r, tableName, urlQuery, authInfo)
-    case "OPTIONS":
-        data = nil
 	default:
 		data = &j.Response{
 			Code: http.StatusMethodNotAllowed,

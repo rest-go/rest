@@ -12,6 +12,7 @@ type Config struct {
 	Addr string
 	DB   server.DBConfig
 	Auth server.AuthConfig
+	Cors server.CorsConfig
 }
 
 func NewConfig(configPath string) (*Config, error) {
